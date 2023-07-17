@@ -1,0 +1,5 @@
+
+depth_module.enable_auto_exposure: true
+depth_module.emitter_always_on: true
+
+#rgb_camera.enable_auto_exposure: true
