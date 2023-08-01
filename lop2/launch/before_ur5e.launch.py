@@ -80,7 +80,7 @@ def generate_launch_description():
 	)
 	ld.add_action(realsense_launch)
 
-
+	'''
 	# Add static_transform_publisher, convert camera_link to world
 	static_transform_publisher = launch_ros.actions.Node(
 		package='tf2_ros',
@@ -88,6 +88,30 @@ def generate_launch_description():
 		arguments=[ str(0.0), str(0.0), str(0.0), str(0.0), str(0.0), str(0.0), str(1.0), 'world', 'camera_link']
 	)
 	ld.add_action(static_transform_publisher)
+	'''
+	
+	'''
+	static_transform_publisher  = launch_ros.actions.Node(
+		package='tf2_ros',
+		executable='static_transform_publisher',
+		arguments=['0.3', '0.0', '0.0',
+				'0.0', '0.0', '0.0',
+				'world','camera_link'],
+		#output='screen'
+	)
+	ld.add_action(static_transform_publisher)
+	'''
+	
+
+	static_transform_publisher2  = launch_ros.actions.Node(
+		package='tf2_ros',
+		executable='static_transform_publisher',
+		arguments=['0.0', '0.0', '0.0',
+				'0.0', '0.0', '0.0',
+				'world','camera_link'],
+		#output='screen'
+	)
+	ld.add_action(static_transform_publisher2)
 	
 
 	# Add execute process for launching ur_robot_driver

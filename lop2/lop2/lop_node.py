@@ -261,9 +261,9 @@ class Lop (rclpy.node.Node):
 			# *******************************************
 			
 			# **********get right wrist and elbow position and publish***********************************
-			if (pose_3d.points[4] is not None) and (pose_3d.points[5] is not None) and (people_ID == 1):
+			if (pose_3d.points[4] is not None) and (pose_3d.points[3] is not None) and (people_ID == 1):
 				msg = Float32MultiArray()
-				msg.data = [pose_3d.points[4][0], pose_3d.points[4][1], pose_3d.points[4][2], pose_3d.points[5][0], pose_3d.points[5][1], pose_3d.points[5][2]]
+				msg.data = [pose_3d.points[4][0], pose_3d.points[4][1], pose_3d.points[4][2], pose_3d.points[3][0], pose_3d.points[3][1], pose_3d.points[3][2]]
 				self.handposition_publisher.publish(msg)
 		
 			# *******************************************************************************************

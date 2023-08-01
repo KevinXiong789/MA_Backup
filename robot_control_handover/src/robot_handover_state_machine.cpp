@@ -1,275 +1,3 @@
-/*
-// three state: Nominal task, grasp from human, give tool to human         ************** can run
-#include <memory>
-#include <iostream>
-#include <chrono>
-#include <rclcpp/rclcpp.hpp>
-#include <moveit/move_group_interface/move_group_interface.h>
-#include <std_msgs/msg/float32_multi_array.hpp>
-#include <std_msgs/msg/bool.hpp>
-
-
-enum RobotState {
-	NOMINAL,
-	TAKEAWAY,
-	//WAITING,
-	GIVE
-};
-
-// Declare a global robot state variable
-RobotState robot_state = NOMINAL;
-
-rclcpp::TimerBase::SharedPtr plan_execution_timer;
-
-// Move the robot between two fixed points
-void moveBetweenFixedPoints(geometry_msgs::msg::Pose point_pose, moveit::planning_interface::MoveGroupInterface& move_group_interface) {
-	if (robot_state != NOMINAL) {
-		std::cout << "Invalid robot state for moveBetweenFixedPoints" << std::endl;
-		return;
-	}
-
-	std::cout << "Doing nominal Task" << std::endl;
-	// Move to the fixed point
-	move_group_interface.setPoseTarget(point_pose);
-	moveit::planning_interface::MoveGroupInterface::Plan plan;
-	if (move_group_interface.plan(plan)) {
-		move_group_interface.execute(plan);
-		std::cout << "Robot moved to fixed point successfully" << std::endl;
-	} else {
-		std::cerr << "Failed to plan trajectory to fixed point" << std::endl;
-	}
-
-
-	// Simulating a sleep of 5 seconds
-	//std::this_thread::sleep_for(std::chrono::seconds(5));
-	
-	plan_execution_timer->reset();
-}
-
-
-// Move the robot to the grasp position
-void moveToGraspPosition(const std_msgs::msg::Float32MultiArray::SharedPtr msg, moveit::planning_interface::MoveGroupInterface& move_group_interface) {
-	if (robot_state != TAKEAWAY) {
-		std::cout << "Invalid robot state for moveToGraspPosition" << std::endl;
-		return;
-	}
-
-	std::cout << "Move to grasping position" << std::endl;
-	// Check if the message contains at least three values
-	if (msg->data.size() >= 3) {
-		// Extract the x, y, z coordinates from the message
-		double x = msg->data[0];
-		double y = msg->data[1];
-		double z = msg->data[2];
-
-		// Set the target pose with the received coordinates
-		geometry_msgs::msg::Pose target_pose;
-		target_pose.orientation.w = 0.0;
-		target_pose.orientation.x = 0.707;
-		target_pose.orientation.y = 0.0;
-		target_pose.orientation.z = 0.707;
-		target_pose.position.x = z;
-		target_pose.position.y = -x;
-		target_pose.position.z = -y;
-
-		// Set the target pose in the MoveGroup interface
-		move_group_interface.setPoseTarget(target_pose);
-		// Create a plan to the target pose
-		moveit::planning_interface::MoveGroupInterface::Plan plan;
-		if (move_group_interface.plan(plan)) {
-			move_group_interface.execute(plan);
-			std::cout << "Robot moved to grasping point successfully" << std::endl;
-		} else {
-			std::cerr << "Failed to plan trajectory to target pose" << std::endl;
-		}
-
-	}
-	// Simulating a sleep of 5 seconds
-	//std::this_thread::sleep_for(std::chrono::seconds(5));
-
-}
-
-
-// Move the robot to the giving position
-void moveToGivePosition(const std_msgs::msg::Float32MultiArray::SharedPtr msg, moveit::planning_interface::MoveGroupInterface& move_group_interface) {
-	if (robot_state != GIVE) {
-		std::cout << "Invalid robot state for moveToGivePosition" << std::endl;
-		return;
-	}
-
-	std::cout << "Move to give position" << std::endl;
-	// Check if the message contains at least three values
-	if (msg->data.size() >= 3) {
-		// Extract the x, y, z coordinates from the message
-		double x = msg->data[0];
-		double y = msg->data[1];
-		double z = msg->data[2];
-
-		// Set the target pose with the received coordinates
-		geometry_msgs::msg::Pose target_pose;
-		target_pose.orientation.w = 0.0;
-		target_pose.orientation.x = 0.707;
-		target_pose.orientation.y = 0.0;
-		target_pose.orientation.z = 0.707;
-		target_pose.position.x = z;
-		target_pose.position.y = -x;
-		target_pose.position.z = -y;
-
-		// Set the target pose in the MoveGroup interface
-		move_group_interface.setPoseTarget(target_pose);
-		// Create a plan to the target pose
-		moveit::planning_interface::MoveGroupInterface::Plan plan;
-		if (move_group_interface.plan(plan)) {
-			move_group_interface.execute(plan);
-			std::cout << "Robot moved to giving point successfully" << std::endl;
-		} else {
-			std::cerr << "Failed to plan trajectory to target pose" << std::endl;
-		}
-
-	}
-	// Simulating a sleep of 5 seconds
-	//std::this_thread::sleep_for(std::chrono::seconds(5));
-
-}
-
-// Move robot to the tool place
-void moveToToolPlace(moveit::planning_interface::MoveGroupInterface& move_group_interface) {
-
-	std::cout << "Move to tool place" << std::endl;
-	// Set the tool place
-	geometry_msgs::msg::Pose tool_pose;
-	tool_pose.orientation.w = 0.0;
-	tool_pose.orientation.x = 0.707;
-	tool_pose.orientation.y = 0.0;
-	tool_pose.orientation.z = -0.707;
-	tool_pose.position.x = -0.6;
-	tool_pose.position.y = -0.3;
-	tool_pose.position.z = 0.05;
-
-	// Set the tool pose in the MoveGroup interface
-	move_group_interface.setPoseTarget(tool_pose);
-	// Create a plan to the target pose
-	moveit::planning_interface::MoveGroupInterface::Plan plan;
-	if (move_group_interface.plan(plan)) {
-		move_group_interface.execute(plan);
-		std::cout << "Robot moved to tool place pose successfully" << std::endl;
-	} else {
-		std::cerr << "Failed to plan trajectory to target pose" << std::endl;
-	}
-	// Simulating a sleep of 5 seconds
-	//std::this_thread::sleep_for(std::chrono::seconds(5));
-  
-}
-
-
-
-int main(int argc, char* argv[]) {
-// Initialize ROS and create the Node
-rclcpp::init(argc, argv);
-auto const node = std::make_shared<rclcpp::Node>(
-	"ur10e_moveit",
-	rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true));
-
-// Create the MoveIt MoveGroup Interface
-using moveit::planning_interface::MoveGroupInterface;
-auto move_group_interface = MoveGroupInterface(node, "ur_manipulator");
-
-// Create the plan execution timer
-plan_execution_timer = node->create_wall_timer(std::chrono::seconds(3),
-	[&]() {
-		// Code to execute after the delay
-		std::cout << "Delay finished, executing next command" << std::endl;
-		// Stop the timer
-		plan_execution_timer->cancel();
-	}
-);
-
-// declare a boolean value
-bool ToolInHandFlag = false;
-
-bool switcher = true;
-
-// point1 for nominal task
-geometry_msgs::msg::Pose point1_pose;
-point1_pose.orientation.w = 0.0;
-point1_pose.orientation.x = 0.707;
-point1_pose.orientation.y = 0.0;
-point1_pose.orientation.z = 0.707;
-point1_pose.position.x = 0.6;
-point1_pose.position.y = 0.6;
-point1_pose.position.z = 0.4;
-// point2 for nominal task
-geometry_msgs::msg::Pose point2_pose = point1_pose;
-point2_pose.orientation.z = -0.707;
-point2_pose.position.x = -0.6;
-
-// run nominal task
-//moveBetweenFixedPoints(move_group_interface);
-
-// Declare a subscriber for the hand position topic
-auto hand_position_sub = node->create_subscription<std_msgs::msg::Float32MultiArray>(
-	"/handover/tool_grasping_position",
-	1,
-	[&](const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
-		switch(robot_state)
-		{
-		case NOMINAL:
-			//moveBetweenFixedPoints(move_group_interface);
-			switcher = !switcher;
-			moveBetweenFixedPoints((switcher)?point1_pose:point2_pose,move_group_interface);
-			break;
-
-		case TAKEAWAY:
-			moveToGraspPosition(msg, move_group_interface);
-			moveToToolPlace(move_group_interface);
-			robot_state = NOMINAL; // Reset the robot state to NOMINAL after TAKEAWAY
-			break;
-
-		case GIVE:
-			moveToToolPlace(move_group_interface);
-			moveToGivePosition(msg, move_group_interface);
-			robot_state = NOMINAL; // Reset the robot state to NOMINAL after GIVE
-			break;
-		}	
-	});
-
-// Declare a subscriber for the handover_trigger bool topic
-auto handover_trigger_sub = node->create_subscription<std_msgs::msg::Bool>(
-	"/handover/handover_trigger",
-	1,
-	[&](const std_msgs::msg::Bool::SharedPtr msg) {
-	if (msg->data) {
-		//robot_state = WAITING;
-		if (ToolInHandFlag) {
-			robot_state = TAKEAWAY;
-		} else {
-			robot_state = GIVE;
-		}
-	} else {
-		robot_state = NOMINAL;
-	}
-	});
-
-// Declare a subscriber for the ToolInHandFlag bool topic
-auto ToolInHandFlag_sub = node->create_subscription<std_msgs::msg::Bool>(
-	"/handover/ToolInHandFlag",
-	1,
-	[&](const std_msgs::msg::Bool::SharedPtr msg) {
-		ToolInHandFlag = msg->data;
-	});
-
-
-// Spin the node
-rclcpp::spin(node);
-
-// Shutdown ROS
-rclcpp::shutdown();
-return 0;
-}
-*/
-
-
-
 
 
 /*
@@ -886,8 +614,11 @@ public:
 
     // point2 for nominal task
     point2_pose_ = point1_pose_;
-    
     point2_pose_.position.y = -0.4;
+
+	toolPoint_pose_ = point1_pose_;
+	toolPoint_pose_.position.z = 0.3;
+	toolPoint_pose_.position.y = 0.5;
 
     // Declare a subscriber for the hand position topic
 	hand_position_sub_ = create_subscription<std_msgs::msg::Float32MultiArray>(
@@ -927,7 +658,7 @@ private:
 	handPosition_ = msg;
   }
 
-
+  /*
   void updateStatus() {
 	if (triggered_handover_) {
           if (ToolInHandFlag_) {
@@ -944,6 +675,21 @@ private:
           robot_state = NOMINAL;
 		}
   }
+  */
+
+  void updateStatus() {
+	if (triggered_handover_ && robot_state == NOMINAL) {
+          if (ToolInHandFlag_) {
+            robot_state = TAKEAWAY;
+          } else {
+			robot_state = PICKTOOL;
+			}
+	} else if (robot_state == PICKTOOL) {
+		robot_state = GIVE;
+	} else {
+		robot_state = NOMINAL;
+	}
+  }
 
 
   void stateMachine() {
@@ -951,32 +697,36 @@ private:
 	addWallsAndBase();
 	switch (robot_state) {
 		case NOMINAL:
+		std::cout << "Doing nominal Task" << std::endl;
 		switcher_ = !switcher_;
 		moveBetweenFixedPoints((switcher_) ? point1_pose_ : point2_pose_);
 		sleepSafeFor(3.0);
 		break;
 
 		case TAKEAWAY:
+		std::cout << "Grasping tool from human hand" << std::endl;
 		pose = getGraspGivePosition(handPosition_);
 		moveToGraspPosition(pose);
-		PlaceTool();
+		PlaceTool(toolPoint_pose_);
 		sleepSafeFor(3.0);
-		robot_state = NOMINAL; // Reset the robot state to NOMINAL after TAKEAWAY
+		//robot_state = NOMINAL; // Reset the robot state to NOMINAL after TAKEAWAY
 		triggered_handover_ = false;
 		break;
 
 		case PICKTOOL:
-		PickTool();
-		ToolInGripper = true;
+		std::cout << "Move to tool cell to pick tool" << std::endl;
+		PickTool(toolPoint_pose_);
+		//ToolInGripper = true;
 		sleepSafeFor(5.0);
 		break;
 
 		case GIVE:
+		std::cout << "Give tool to human hand" << std::endl;
 		pose = getGraspGivePosition(handPosition_);
 		moveToGivePosition(pose);
 		sleepSafeFor(3.0);
-		ToolInGripper = false;
-		robot_state = NOMINAL; // Reset the robot state to NOMINAL after GIVE
+		//ToolInGripper = false;
+		//robot_state = NOMINAL; // Reset the robot state to NOMINAL after GIVE
 		triggered_handover_ = false;
 		break;
     }
@@ -984,7 +734,7 @@ private:
   }
 
 
-
+/*
   void moveBetweenFixedPoints(const geometry_msgs::msg::Pose& point_pose) {
     if (robot_state != NOMINAL) {
       std::cout << "Invalid robot state for moveBetweenFixedPoints" << std::endl;
@@ -1006,10 +756,56 @@ private:
     } else {
       std::cerr << "Failed to plan trajectory to fixed point" << std::endl;
     }
+  }
+*/
 
 
+  void moveBetweenFixedPoints(const geometry_msgs::msg::Pose& point_pose) {
+    int trial = 0;
+    while(trial < 20) {
+      moveit::planning_interface::MoveGroupInterface::Plan plan = getCartesianPathPlanToPose(point_pose);
+      if (moveGroupExecutePlan(plan)) {
+        std::cout << "Robot moved to fixed point successfully" << std::endl;
+        return;
+      }
+      std::cerr << "Execution to point trial " << trial++ << " failed. Reattempting" << std::endl;
+    }
+    std::cerr << "Max execution attempts reached, error" << std::endl;
+    sleepSafeFor(1.0);
   }
 
+  moveit::planning_interface::MoveGroupInterface::Plan getCartesianPathPlanToPose(const geometry_msgs::msg::Pose& point_pose) {
+    std::vector<geometry_msgs::msg::Pose> waypoints;
+    //waypoints.push_back(move_group_interface_.getCurrentPose().pose);
+    waypoints.push_back(point_pose);
+
+    moveit_msgs::msg::RobotTrajectory trajectory;
+    const double eef_step = 0.01;
+    const double jump_threshold = 0.0;
+    double fraction = 0.0;
+
+    int trial = 0;
+    while(fraction < 0.5 && trial++ < 5) {
+      fraction = move_group_interface_.computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory);
+    }
+    
+    if(trial == 5 && fraction < 0.5) {
+      std::cerr << "Could not compute cartesian path for given waypoints, aborting!!" << std::endl;
+      exit(-1);
+    }
+
+    moveit::planning_interface::MoveGroupInterface::Plan plan;
+    plan.trajectory_ = trajectory;
+    return plan;
+  }
+
+  bool moveGroupExecutePlan(const moveit::planning_interface::MoveGroupInterface::Plan& plan) {
+    return move_group_interface_.execute(plan) == moveit_msgs::msg::MoveItErrorCodes::SUCCESS;
+  }
+
+
+
+/*
   void PlaceTool() {
     // Code to move the robot to the tool place position
     std::cout << "Move to tool cell to place Tool" << std::endl;
@@ -1043,7 +839,9 @@ private:
 		std::cerr << "Failed to plan trajectory to target pose" << std::endl;
 	}
   }
+*/
 
+/*
   void PickTool() {
 	// Code to move the robot to the tool place position
     std::cout << "Move to tool cell to pick tool" << std::endl;
@@ -1076,7 +874,36 @@ private:
 	} else {
 		std::cerr << "Failed to plan trajectory to target pose" << std::endl;
 	}
+  }
+*/
 
+  void PlaceTool(const geometry_msgs::msg::Pose& point_pose) {
+    int trial = 0;
+    while(trial < 20) {
+      moveit::planning_interface::MoveGroupInterface::Plan plan = getCartesianPathPlanToPose(point_pose);
+      if (moveGroupExecutePlan(plan)) {
+        std::cout << "Robot moved to tool cell to place successfully" << std::endl;
+        return;
+      }
+      std::cerr << "Execution to point trial " << trial++ << " failed. Reattempting" << std::endl;
+    }
+    std::cerr << "Max execution attempts reached, error" << std::endl;
+    sleepSafeFor(1.0);
+  }
+
+
+  void PickTool(const geometry_msgs::msg::Pose& point_pose) {
+    int trial = 0;
+    while(trial < 20) {
+      moveit::planning_interface::MoveGroupInterface::Plan plan = getCartesianPathPlanToPose(point_pose);
+      if (moveGroupExecutePlan(plan)) {
+        std::cout << "Robot moved to tool cell to pick successfully" << std::endl;
+        return;
+      }
+      std::cerr << "Execution to point trial " << trial++ << " failed. Reattempting" << std::endl;
+    }
+    std::cerr << "Max execution attempts reached, error" << std::endl;
+    sleepSafeFor(1.0);
   }
 
 
@@ -1088,6 +915,172 @@ private:
 		rate.sleep();
 	}
   }
+
+  
+
+  geometry_msgs::msg::Pose getGraspGivePosition(const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
+	// convert the coordinate system, because the xyz coordinate of Point cloud and ur10e robot are different
+	geometry_msgs::msg::Pose pose;
+	pose.position.x = msg->data[2];
+	pose.position.y = -msg->data[0];
+	pose.position.z = -msg->data[1];
+	tf2::Quaternion q;
+    double roll = 0, pitch = M_PI/2, yaw = 0;  // All in radians
+    q.setRPY(roll, pitch, yaw);
+
+    pose.orientation.w = q.getW();
+    pose.orientation.x = q.getX();
+    pose.orientation.y = q.getY();
+    pose.orientation.z = q.getZ();
+	
+	return pose;
+  }
+
+/*
+  void moveToGraspPosition(geometry_msgs::msg::Pose pose) {
+    // Code to move the robot to the grasp position based on the received message
+    if (robot_state != TAKEAWAY) {
+		std::cout << "Invalid robot state for moveToGraspPosition" << std::endl;
+		return;
+	}
+
+	std::cout << "Grasping tool from human hand" << std::endl;
+	
+	geometry_msgs::msg::Pose target_pose = pose;
+	target_pose.position.x = pose.position.x - 0.1;
+
+	double velocity_factor = 0.5;  
+	double acceleration_factor = 0.5;  
+	move_group_interface_.setMaxVelocityScalingFactor(velocity_factor);
+	move_group_interface_.setMaxAccelerationScalingFactor(acceleration_factor);
+
+	// Set the target pose in the MoveGroup interface
+	move_group_interface_.setPoseTarget(target_pose);
+	// Create a plan to the target pose
+	moveit::planning_interface::MoveGroupInterface::Plan plan1;
+	if (move_group_interface_.plan(plan1)) {
+		move_group_interface_.execute(plan1);
+		std::cout << "Robot moved to approximate point successfully" << std::endl;
+	} else {
+		std::cerr << "Failed to plan trajectory to target pose" << std::endl;
+	}
+
+	// Create waypoints for straight line motion
+	std::vector<geometry_msgs::msg::Pose> waypoints;
+	target_pose.position.x += 0.1; // move 0.1 along x axis
+	waypoints.push_back(target_pose);
+
+	// Create a plan to the final target pose with straight line motion
+	moveit::planning_interface::MoveGroupInterface::Plan plan2;
+	moveit_msgs::msg::RobotTrajectory trajectory;
+
+	// Get the Cartesian path for straight line motion
+	const double eef_step = 0.01;
+	const double jump_threshold = 0.0;
+	double fraction = move_group_interface_.computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory);
+
+	if (fraction >= 1.0) {
+		plan2.trajectory_ = trajectory;
+		move_group_interface_.execute(plan2);
+		std::cout << "Robot moved to grasping point successfully" << std::endl;
+	} else {
+		std::cerr << "Failed to compute Cartesian path to giving point" << std::endl;
+	}
+  }
+*/
+
+/*
+  void moveToGivePosition(geometry_msgs::msg::Pose pose) {
+    // Code to move the robot to the given position based on the received message
+    if (robot_state != GIVE) {
+		std::cout << "Invalid robot state for moveToGivePosition" << std::endl;
+		return;
+	}
+
+	std::cout << "Give tool to human hand" << std::endl;
+
+	geometry_msgs::msg::Pose target_pose = pose;
+	target_pose.position.x = pose.position.x - 0.1;
+	target_pose.position.z = pose.position.z + 0.1;
+
+	double velocity_factor = 0.5;  
+	double acceleration_factor = 0.5;  
+	move_group_interface_.setMaxVelocityScalingFactor(velocity_factor);
+	move_group_interface_.setMaxAccelerationScalingFactor(acceleration_factor);
+
+	// Set the target pose in the MoveGroup interface
+	move_group_interface_.setPoseTarget(target_pose);
+	// Create a plan to the target pose
+	moveit::planning_interface::MoveGroupInterface::Plan plan1;
+	if (move_group_interface_.plan(plan1)) {
+		move_group_interface_.execute(plan1);
+		std::cout << "Robot moved to approximate point successfully" << std::endl;
+	} else {
+		std::cerr << "Failed to plan trajectory to target pose" << std::endl;
+		return;
+	}
+
+	// Create waypoints for straight line motion
+	std::vector<geometry_msgs::msg::Pose> waypoints;
+	target_pose.position.x += 0.1; // move 0.1 along x axis
+	waypoints.push_back(target_pose);
+
+	// Create a plan to the final target pose with straight line motion
+	moveit::planning_interface::MoveGroupInterface::Plan plan2;
+	moveit_msgs::msg::RobotTrajectory trajectory;
+
+	// Get the Cartesian path for straight line motion
+	const double eef_step = 0.01;
+	const double jump_threshold = 0.0;
+	double fraction = move_group_interface_.computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory);
+
+	if (fraction >= 1.0) {
+		plan2.trajectory_ = trajectory;
+		move_group_interface_.execute(plan2);
+		std::cout << "Robot moved to giving point successfully" << std::endl;
+	} else {
+		std::cerr << "Failed to compute Cartesian path to giving point" << std::endl;
+	}
+  }
+*/
+
+  void moveToGraspPosition(const geometry_msgs::msg::Pose& point_pose) {
+    int trial = 0;
+    while(trial < 20) {
+      moveit::planning_interface::MoveGroupInterface::Plan plan = getCartesianPathPlanToPose(point_pose);
+      if (moveGroupExecutePlan(plan)) {
+        std::cout << "Robot moved to grasping point successfully" << std::endl;
+        return;
+      }
+      std::cerr << "Execution to point trial " << trial++ << " failed. Reattempting" << std::endl;
+    }
+    std::cerr << "Max execution attempts reached, error" << std::endl;
+    sleepSafeFor(1.0);
+  }
+
+  void moveToGivePosition(const geometry_msgs::msg::Pose& point_pose) {
+    int trial = 0;
+    while(trial < 20) {
+      moveit::planning_interface::MoveGroupInterface::Plan plan = getCartesianPathPlanToPose(point_pose);
+      if (moveGroupExecutePlan(plan)) {
+        std::cout << "Robot moved to give point successfully" << std::endl;
+        return;
+      }
+      std::cerr << "Execution to point trial " << trial++ << " failed. Reattempting" << std::endl;
+    }
+    std::cerr << "Max execution attempts reached, error" << std::endl;
+    sleepSafeFor(1.0);
+  }
+
+
+
+  bool checkPositionStability(geometry_msgs::msg::Pose old_pose, geometry_msgs::msg::Pose new_pose) {
+	double threshold = 0.0001; // Threshold for position stability check
+	double distance = std::sqrt(std::pow(old_pose.position.x - new_pose.position.x, 2) +
+								std::pow(old_pose.position.y - new_pose.position.y, 2) +
+								std::pow(old_pose.position.z - new_pose.position.z, 2));
+	return (distance <= threshold);
+	}
 
   void addWallsAndBase() {
     std::vector<moveit_msgs::msg::CollisionObject> collision_objects;
@@ -1145,7 +1138,7 @@ private:
     collision_objects[3].primitive_poses.resize(1);
     collision_objects[3].primitive_poses[0].orientation.w = 1.0;
 	collision_objects[3].primitive_poses[0].position.x = 0.25;
-    collision_objects[3].primitive_poses[0].position.z = -base_height / 2;
+    collision_objects[3].primitive_poses[0].position.z = -base_height;
     collision_objects[3].operation = collision_objects[3].ADD;
 
 	// Add tool box
@@ -1172,142 +1165,10 @@ private:
 
   }
 
-  geometry_msgs::msg::Pose getGraspGivePosition(const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
-	// convert the coordinate system, because the xyz coordinate of Point cloud and ur10e robot are different
-	geometry_msgs::msg::Pose pose;
-	pose.position.x = msg->data[2];
-	pose.position.y = -msg->data[0];
-	pose.position.z = -msg->data[1];
-	tf2::Quaternion q;
-    double roll = 0, pitch = M_PI/2, yaw = 0;  // All in radians
-    q.setRPY(roll, pitch, yaw);
-
-    pose.orientation.w = q.getW();
-    pose.orientation.x = q.getX();
-    pose.orientation.y = q.getY();
-    pose.orientation.z = q.getZ();
-	
-	return pose;
-  }
-
-  void moveToGraspPosition(geometry_msgs::msg::Pose pose) {
-    // Code to move the robot to the grasp position based on the received message
-    if (robot_state != TAKEAWAY) {
-		std::cout << "Invalid robot state for moveToGraspPosition" << std::endl;
-		return;
-	}
-
-	std::cout << "Grasping tool from human hand" << std::endl;
-	
-	geometry_msgs::msg::Pose target_pose = pose;
-	target_pose.position.x = pose.position.x - 0.1;
-
-	double velocity_factor = 0.5;  
-	double acceleration_factor = 0.5;  
-	move_group_interface_.setMaxVelocityScalingFactor(velocity_factor);
-	move_group_interface_.setMaxAccelerationScalingFactor(acceleration_factor);
-
-	// Set the target pose in the MoveGroup interface
-	move_group_interface_.setPoseTarget(target_pose);
-	// Create a plan to the target pose
-	moveit::planning_interface::MoveGroupInterface::Plan plan1;
-	if (move_group_interface_.plan(plan1)) {
-		move_group_interface_.execute(plan1);
-		std::cout << "Robot moved to approximate point successfully" << std::endl;
-	} else {
-		std::cerr << "Failed to plan trajectory to target pose" << std::endl;
-	}
-
-	// Create waypoints for straight line motion
-	std::vector<geometry_msgs::msg::Pose> waypoints;
-	target_pose.position.x += 0.1; // move 0.1 along x axis
-	waypoints.push_back(target_pose);
-
-	// Create a plan to the final target pose with straight line motion
-	moveit::planning_interface::MoveGroupInterface::Plan plan2;
-	moveit_msgs::msg::RobotTrajectory trajectory;
-
-	// Get the Cartesian path for straight line motion
-	const double eef_step = 0.01;
-	const double jump_threshold = 0.0;
-	double fraction = move_group_interface_.computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory);
-
-	if (fraction >= 1.0) {
-		plan2.trajectory_ = trajectory;
-		move_group_interface_.execute(plan2);
-		std::cout << "Robot moved to grasping point successfully" << std::endl;
-	} else {
-		std::cerr << "Failed to compute Cartesian path to giving point" << std::endl;
-	}
-  }
-  
-
-
-  bool checkPositionStability(geometry_msgs::msg::Pose old_pose, geometry_msgs::msg::Pose new_pose) {
-	double threshold = 0.0001; // Threshold for position stability check
-	double distance = std::sqrt(std::pow(old_pose.position.x - new_pose.position.x, 2) +
-								std::pow(old_pose.position.y - new_pose.position.y, 2) +
-								std::pow(old_pose.position.z - new_pose.position.z, 2));
-	return (distance <= threshold);
-	}
-
-
-  void moveToGivePosition(geometry_msgs::msg::Pose pose) {
-    // Code to move the robot to the given position based on the received message
-    if (robot_state != GIVE) {
-		std::cout << "Invalid robot state for moveToGivePosition" << std::endl;
-		return;
-	}
-
-	std::cout << "Give tool to human hand" << std::endl;
-
-	geometry_msgs::msg::Pose target_pose = pose;
-	target_pose.position.x = pose.position.x - 0.1;
-	target_pose.position.z = pose.position.z + 0.1;
-
-	double velocity_factor = 0.5;  
-	double acceleration_factor = 0.5;  
-	move_group_interface_.setMaxVelocityScalingFactor(velocity_factor);
-	move_group_interface_.setMaxAccelerationScalingFactor(acceleration_factor);
-
-	// Set the target pose in the MoveGroup interface
-	move_group_interface_.setPoseTarget(target_pose);
-	// Create a plan to the target pose
-	moveit::planning_interface::MoveGroupInterface::Plan plan1;
-	if (move_group_interface_.plan(plan1)) {
-		move_group_interface_.execute(plan1);
-		std::cout << "Robot moved to approximate point successfully" << std::endl;
-	} else {
-		std::cerr << "Failed to plan trajectory to target pose" << std::endl;
-		return;
-	}
-
-	// Create waypoints for straight line motion
-	std::vector<geometry_msgs::msg::Pose> waypoints;
-	target_pose.position.x += 0.1; // move 0.1 along x axis
-	waypoints.push_back(target_pose);
-
-	// Create a plan to the final target pose with straight line motion
-	moveit::planning_interface::MoveGroupInterface::Plan plan2;
-	moveit_msgs::msg::RobotTrajectory trajectory;
-
-	// Get the Cartesian path for straight line motion
-	const double eef_step = 0.01;
-	const double jump_threshold = 0.0;
-	double fraction = move_group_interface_.computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory);
-
-	if (fraction >= 1.0) {
-		plan2.trajectory_ = trajectory;
-		move_group_interface_.execute(plan2);
-		std::cout << "Robot moved to giving point successfully" << std::endl;
-	} else {
-		std::cerr << "Failed to compute Cartesian path to giving point" << std::endl;
-	}
-  }
-
 
   geometry_msgs::msg::Pose point1_pose_;
   geometry_msgs::msg::Pose point2_pose_;
+  geometry_msgs::msg::Pose toolPoint_pose_;
   RobotState robot_state;
   bool switcher_ = false;
   bool ToolInGripper = false;

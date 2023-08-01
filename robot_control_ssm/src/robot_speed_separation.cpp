@@ -12,7 +12,7 @@
 #include <tf2/LinearMath/Quaternion.h>
 
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
-
+#include <ur_msgs/srv/set_io.hpp>
 
 class UR10EMoveit : public rclcpp::Node {
 public:
@@ -21,7 +21,7 @@ public:
 
     // Convert Euler angles to quaternion
     tf2::Quaternion q;
-    double roll = 0, pitch = M_PI/2, yaw = 0;  // All in radians
+    double roll = 0, pitch = M_PI, yaw = 0;  // All in radians
     q.setRPY(roll, pitch, yaw);
 
     point1_pose_.orientation.w = q.getW();
@@ -46,6 +46,8 @@ public:
     // Begin state machine
     //timer_ = create_wall_timer(std::chrono::milliseconds(100), std::bind(&UR10EMoveit::stateMachine, this));
     
+    // Initialize the service client for setting IO
+    set_io_client_ = create_client<ur_msgs::srv::SetIO>("/io_and_status_controller/set_io");
 
     while (rclcpp::ok()) {
         stateMachine();
@@ -79,27 +81,142 @@ private:
 
     std::cout << "Doing nominal Task" << std::endl;
 
+    //open_gripper(set_io_client_);
+
     // Move to the fixed point
     move_group_interface_.setPoseTarget(point_pose);
 
+    /*
     // Set speed and acceleration
     double velocity_factor = 0.5;  // 50% of the maximum velocity
     double acceleration_factor = 0.5;  // 50% of the maximum acceleration
     move_group_interface_.setMaxVelocityScalingFactor(velocity_factor);
     move_group_interface_.setMaxAccelerationScalingFactor(acceleration_factor);
+    */
 
-    addWallsAndBase();
     moveit::planning_interface::MoveGroupInterface::Plan plan;
+    /*
     if (move_group_interface_.plan(plan)) {
       move_group_interface_.execute(plan);
       std::cout << "Robot moved to fixed point successfully" << std::endl;
+      //sleepSafeFor(1.0);
+      //close_gripper(set_io_client_);
     } else {
       std::cerr << "Failed to plan trajectory to fixed point" << std::endl;
     }
     
     // Simulating a sleep of 3 seconds
     sleepSafeFor(3.0);
+    */
+    
+    int tries = 0;
 
+    while (tries < 3) {
+      if (move_group_interface_.plan(plan)) {
+        move_group_interface_.execute(plan);
+        std::cout << "Robot moved to fixed point successfully" << std::endl;
+        sleepSafeFor(3.0);
+        return;
+      } else {
+        std::cerr << "Failed to plan trajectory to fixed point, try " << tries+1 << " of 3" << std::endl;
+        tries++;
+      }
+    }
+
+    std::cerr << "Failed to plan trajectory to fixed point after 3 tries" << std::endl;
+
+
+  }
+
+  bool open_gripper(rclcpp::Client<ur_msgs::srv::SetIO>::SharedPtr set_io_client_)
+  {
+    ur_msgs::srv::SetIO::Request set_req1;
+    set_req1.fun = (float)ur_msgs::srv::SetIO::Request::FUN_SET_DIGITAL_OUT;
+    set_req1.pin = (float)ur_msgs::srv::SetIO::Request::PIN_DOUT0;
+    set_req1.state = (float)ur_msgs::srv::SetIO::Request::STATE_OFF;
+    RCLCPP_INFO(rclcpp::get_logger("set_io"), "%s", ur_msgs::srv::to_yaml(set_req1).c_str());
+    auto fut =
+        set_io_client_->async_send_request(std::make_shared<ur_msgs::srv::SetIO::Request>(set_req1));
+    auto fut_res = fut.wait_for(std::chrono::seconds(2));
+    if (fut_res == std::future_status::timeout)
+    {
+      RCLCPP_INFO(rclcpp::get_logger("set_io"), "Set IO failed with timeout.");
+      return false;
+    }
+
+    if (!fut.get()->success)
+    {
+      RCLCPP_INFO(rclcpp::get_logger("set_io"), "Set IO was not successful.");
+      return false;
+    }
+
+    ur_msgs::srv::SetIO::Request reset_req2;
+    reset_req2.fun = (float)ur_msgs::srv::SetIO::Request::FUN_SET_DIGITAL_OUT;
+    reset_req2.pin = (float)ur_msgs::srv::SetIO::Request::PIN_DOUT1;
+    reset_req2.state = (float)ur_msgs::srv::SetIO::Request::STATE_ON;
+
+    fut =
+        set_io_client_->async_send_request(std::make_shared<ur_msgs::srv::SetIO::Request>(reset_req2));
+    fut_res = fut.wait_for(std::chrono::seconds(2));
+    if (fut_res == std::future_status::timeout)
+    {
+      RCLCPP_INFO(rclcpp::get_logger("set_io"), "Set IO failed with timeout.");
+      return false;
+    }
+
+    if (!fut.get()->success)
+    {
+      RCLCPP_INFO(rclcpp::get_logger("set_io"), "Set IO was not successful.");
+      return false;
+    }
+
+    return true;
+  }
+
+  bool close_gripper(rclcpp::Client<ur_msgs::srv::SetIO>::SharedPtr set_io_client_)
+  {
+    ur_msgs::srv::SetIO::Request set_req2;
+    set_req2.fun = (float)ur_msgs::srv::SetIO::Request::FUN_SET_DIGITAL_OUT;
+    set_req2.pin = (float)ur_msgs::srv::SetIO::Request::PIN_DOUT1;
+    set_req2.state = (float)ur_msgs::srv::SetIO::Request::STATE_OFF;
+
+    RCLCPP_INFO(rclcpp::get_logger("set_io"), "%s", ur_msgs::srv::to_yaml(set_req2).c_str());
+    auto fut =
+        set_io_client_->async_send_request(std::make_shared<ur_msgs::srv::SetIO::Request>(set_req2));
+    auto fut_res = fut.wait_for(std::chrono::seconds(2));
+    if (fut_res == std::future_status::timeout)
+    {
+      RCLCPP_INFO(rclcpp::get_logger("set_io"), "Set IO failed with timeout.");
+      return false;
+    }
+
+    if (!fut.get()->success)
+    {
+      RCLCPP_INFO(rclcpp::get_logger("set_io"), "Set IO was not successful.");
+      return false;
+    }
+
+    ur_msgs::srv::SetIO::Request reset_req1;
+    reset_req1.fun = (float)ur_msgs::srv::SetIO::Request::FUN_SET_DIGITAL_OUT;
+    reset_req1.pin = (float)ur_msgs::srv::SetIO::Request::PIN_DOUT0;
+    reset_req1.state = (float)ur_msgs::srv::SetIO::Request::STATE_ON;
+
+    fut =
+        set_io_client_->async_send_request(std::make_shared<ur_msgs::srv::SetIO::Request>(reset_req1));
+    fut_res = fut.wait_for(std::chrono::seconds(2));
+    if (fut_res == std::future_status::timeout)
+    {
+      RCLCPP_INFO(rclcpp::get_logger("set_io"), "Set IO failed with timeout.");
+      return false;
+    }
+
+    if (!fut.get()->success)
+    {
+      RCLCPP_INFO(rclcpp::get_logger("set_io"), "Set IO was not successful.");
+      return false;
+    }
+
+    return true;
   }
 
 
@@ -206,6 +323,8 @@ private:
   moveit::planning_interface::MoveGroupInterface move_group_interface_;
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
   //rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_states_subscriber_;
+
+  rclcpp::Client<ur_msgs::srv::SetIO>::SharedPtr set_io_client_;
 
 
 

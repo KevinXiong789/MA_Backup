@@ -14,6 +14,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
+find_package(tf2 REQUIRED)
+
 
 #find_package(PCL REQUIRED COMPONENTS common io)
 #find_package(PCL REQUIRED COMPONENTS filters)
@@ -39,13 +41,30 @@ ament_target_dependencies(handover_T_inhand_detector
   PCL
   pcl_conversions
   angles
-
+  tf2
 )
 target_link_libraries(handover_T_inhand_detector ${PCL_COMMON_LIBRARIES} ${PCL_IO_LIBRARIES} ${PCL_FILTERS_LIBRARIES} ${PCL_SEGMENTATION_LIBRARIES} ${PCL_SAMPLE_CONSENSUS_LIBRARIES} ${PCL_SURFACE_LIBRARIES})
+
+
+
+#multi_pointcloud.cpp part
+add_executable(multi_pointcloud src/multi_pointcloud.cpp)
+ament_target_dependencies(multi_pointcloud
+  rclcpp 
+  sensor_msgs
+  std_msgs
+  PCL
+  pcl_conversions
+  angles
+  tf2
+)
+target_link_libraries(multi_pointcloud ${PCL_COMMON_LIBRARIES} ${PCL_IO_LIBRARIES} ${PCL_FILTERS_LIBRARIES} ${PCL_SEGMENTATION_LIBRARIES} ${PCL_SAMPLE_CONSENSUS_LIBRARIES} ${PCL_SURFACE_LIBRARIES})
+
 
 #Don't forget add executable name here
 install(TARGETS
     handover_T_inhand_detector
+    multi_pointcloud
     DESTINATION lib/${PROJECT_NAME}) 
 
 

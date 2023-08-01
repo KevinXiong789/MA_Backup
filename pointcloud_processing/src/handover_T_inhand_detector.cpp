@@ -257,7 +257,7 @@ private:
                                  std::pow(right_hand_z - prev_z, 2));
       
 
-      if (distance > 0.01){
+      if (distance > 0.02){
         timer_duration = 0;
       } else {
         timer_duration += (this->now() - prev_time).seconds();
