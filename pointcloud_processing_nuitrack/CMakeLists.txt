@@ -5,6 +5,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+set(NUITRACK_INCLUDE_PATH "/home/student/Nuitrack/nuitrack-sdk-master/Nuitrack/include/middleware")
+set(NUITRACK_LIBRARY_PATH "/usr/local/lib/nuitrack") 
+
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
@@ -24,10 +28,17 @@ find_package(PCL REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(angles REQUIRED)
 
+find_package(OpenCV REQUIRED)
+#find_package(nuitrack REQUIRED) # Assuming there's a FindNuitrack.cmake or NuitrackConfig.cmake available
+
+
 
 include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
+
+
+
 
 #min_distance.cpp part
 add_executable(min_distance src/min_distance.cpp)
@@ -70,6 +81,7 @@ install(TARGETS
     min_distance
     handover_T_inhand_detector
     pointcloud_filter
+    #nuitrack_skeleton_pointcloud
     DESTINATION lib/${PROJECT_NAME}) 
 
 

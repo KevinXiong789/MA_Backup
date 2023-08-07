@@ -247,13 +247,13 @@ class Lop (rclpy.node.Node):
 				pass
 				
 			else:
-				distance_to_zero = math.sqrt((pose_3d.points[keypoint_ID][0]**2)+(pose_3d.points[keypoint_ID][1]**2)+(pose_3d.points[keypoint_ID][2]**2))
+				distance = math.sqrt((pose_3d.points[keypoint_ID][0]**2)+(pose_3d.points[keypoint_ID][1]**2)+(pose_3d.points[keypoint_ID][2]**2))
 				timestamp = int(time.time()*1000)
 				data_point = Point(point_name) \
 							.field("x", pose_3d.points[keypoint_ID][0]) \
 							.field("y", pose_3d.points[keypoint_ID][1]) \
-							.field("d", pose_3d.points[keypoint_ID][2]) \
-							.field("distance", distance_to_zero) \
+							.field("z", pose_3d.points[keypoint_ID][2]) \
+							.field("distance", distance) \
 							.field("people_ID", people_ID) \
 							.time(timestamp,"ms")
 				influxdb_write_api.write(bucket="OpenPose_test", record=data_point)
