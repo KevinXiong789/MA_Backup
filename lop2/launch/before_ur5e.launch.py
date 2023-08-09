@@ -52,18 +52,18 @@ def generate_launch_description():
 			{'publish_markers': publish_markers}
 		]
 	)
-	ld.add_action(lop_node)
+	#ld.add_action(lop_node)
 
-	'''
+	
 	rviz_node = launch_ros.actions.Node(
 		name='rviz',
 		package='rviz2',
 		namespace='lop_rviz',
 		executable='rviz2',
-		arguments=['-d' + os.path.join(package_share_directory, 'config', f'{rviz_config_file_name}.rviz'), '--fixed-frame', 'world' ]
+		#arguments=['-d' + os.path.join(package_share_directory, 'config', f'{rviz_config_file_name}.rviz'), '--fixed-frame', 'world' ]
 	)
-	ld.add_action(rviz_node)
-	'''
+	#ld.add_action(rviz_node)
+	
 	
 	realsense_launch = launch.actions.IncludeLaunchDescription(
 		launch_description_source=launch.launch_description_sources.PythonLaunchDescriptionSource(
@@ -78,7 +78,7 @@ def generate_launch_description():
 			'config_file': os.path.join(package_share_directory, 'data', 'realsense-config.yaml'),
 		}.items()
 	)
-	ld.add_action(realsense_launch)
+	#ld.add_action(realsense_launch)
 
 	'''
 	# Add static_transform_publisher, convert camera_link to world
@@ -102,6 +102,12 @@ def generate_launch_description():
 	ld.add_action(static_transform_publisher)
 	'''
 	
+	nuitrack_node = launch_ros.actions.Node(
+		package='nuitrack_pointcloud',
+		executable='nuitrack_skeleton_pointcloud',
+		output='screen'
+	)
+	ld.add_action(nuitrack_node)
 
 	static_transform_publisher2  = launch_ros.actions.Node(
 		package='tf2_ros',
@@ -135,7 +141,7 @@ def generate_launch_description():
 	# Define a timer to trigger the execution of a C++ file after 10 seconds
 	handover_after10 = TimerAction(period=10.0, actions=[
 		ExecuteProcess(
-			cmd=['ros2', 'run', 'pointcloud_processing', 'handover_T_inhand_detector'],
+			cmd=['ros2', 'run', 'pointcloud_processing_nuitrack', 'handover_T_inhand_detector'],
 			output='screen'
 		)
 	])

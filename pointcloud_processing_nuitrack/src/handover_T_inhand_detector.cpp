@@ -482,7 +482,7 @@ int main(int argc, char * argv[])
 */
 
 
-//*********subscribe point cloud from cam1, get right hand position from cam2 + transform matrix between cam1 and cam2*****************can run
+//*********subscribe point cloud and right wrist and elbow position from cam *******************************************testing
 //*********crop, vg sor filters, then get point cloud, get tool grasping position (xyz and angle), then pub*****************************
 //*********also Hand in cell for 3s -> Handover triggered**************************************
 
@@ -506,7 +506,6 @@ int main(int argc, char * argv[])
 #include <pcl/common/angles.h>
 #include <pcl/kdtree/kdtree_flann.h>
 
-
 class SubscriberNode : public rclcpp::Node
 {
 public:
@@ -514,17 +513,20 @@ public:
   {
     // Subscribe to the point cloud topic
     pcl_subscriber_ = create_subscription<sensor_msgs::msg::PointCloud2>(
-      "/camera/depth/color/points", 10, std::bind(&SubscriberNode::processPointCloud, this, std::placeholders::_1));
+      "/Nuitrack/depth_cloud", 10, std::bind(&SubscriberNode::processPointCloud, this, std::placeholders::_1));
 
     // Subscribe to the Float32MultiArray topic
     float_array_subscriber_ = create_subscription<std_msgs::msg::Float32MultiArray>(
-      "/Nuitrack/right_hand_position", 10, std::bind(&SubscriberNode::processFloatArray, this, std::placeholders::_1));
+      "/Nuitrack/right_hand", 10, std::bind(&SubscriberNode::processFloatArray, this, std::placeholders::_1));
 
     // Create a publisher to publish the processed point cloud
     pcl_publisher = create_publisher<sensor_msgs::msg::PointCloud2>("/processed_point_cloud", 1);
 
     // Create a publisher to publish the tool grasp position and angle
     tool_grasping_pub = create_publisher<std_msgs::msg::Float32MultiArray>("/handover/tool_grasping_position", 1);
+
+    // Create a publisher to publish flag indicating whether the tool in in hand
+    tool_inhand_pub = create_publisher<std_msgs::msg::Bool>("/handover/ToolInHandFlag", 1);
 
     // Create publisher for handover trigged Bool
     handover_bool_pub = create_publisher<std_msgs::msg::Bool>("/handover/handover_trigger", 1);
@@ -537,11 +539,11 @@ private:
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr float_array_subscriber_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pcl_publisher;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr tool_grasping_pub;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr tool_inhand_pub;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr handover_bool_pub;
   rclcpp::Time prev_time;
 
   // Position date will be used in all function
-  float float_array_data_;
   float right_hand_x;
   float right_hand_y;
   float right_hand_z;
@@ -557,23 +559,25 @@ private:
   float timer_duration;
   float static_hand_duration = 3.0;
   std_msgs::msg::Bool handover_trigged_msg;
+  std_msgs::msg::Bool ToolInHand_msg;
 
 
   float distanceComputing (Eigen::Vector4f point, Eigen::Vector4f point2){
     //compute the distance between 2 points
     float distance;
-    distance= sqrt(pow(point[0]-point2(0,0),2)+pow(point[1]-point2(1,0),2)+pow(point[2]-point2(2,0),2));
+    distance= sqrt(pow(point[0]-point2[0],2)+pow(point[1]-point2[1],2)+pow(point[2]-point2[2],2));
     return distance;
   }
 
   bool is_in_the_cell(){
-    if (right_hand_x >= -0.1 && right_hand_x <= 0.1 &&
-        right_hand_y >= -0.1 && right_hand_y <= 0.1 &&
-        right_hand_z >= 0.4 && right_hand_z <= 0.6){
+    if (right_hand_x >= -1.5 && right_hand_x <= 1.5 &&
+        right_hand_y >= -1.5 && right_hand_y <= 1.5 &&
+        right_hand_z >= -0.2 && right_hand_z <= 2.0){
           return true;
         }
     return false;
   }
+
 
   void processPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
   {
@@ -603,7 +607,7 @@ private:
       pcl::PointCloud<pcl::PointXYZ>::Ptr filter_1_cloud(new pcl::PointCloud<pcl::PointXYZ>);
       pcl::VoxelGrid <pcl::PointXYZ> vg_filter;
       vg_filter.setInputCloud(cropped_cloud);
-      vg_filter.setLeafSize(0.005f,0.005f,0.005f);
+      vg_filter.setLeafSize(0.01f,0.01f,0.01f);
       vg_filter.filter(*filter_1_cloud);
 
       // add SOR filter, after vg filter,sor filter works good, FPS>29
@@ -626,14 +630,18 @@ private:
     pcl::getMaxDistance(processed_cloud_const, elbow_point, tool_max_point);
     //RCLCPP_INFO(get_logger(), "tool_max_point xyz: (%.4f, %.4f, %.4f)", tool_max_point[0], tool_max_point[1], tool_max_point[2]);
     // Compute the center of mass of the cropped point cloud
-    Eigen::Vector4f hand_centroid;
-    pcl::compute3DCentroid(*processed_cloud, hand_centroid);
-    //RCLCPP_INFO(get_logger(), "Center of mass: (%.4f, %.4f, %.4f)", centroid[0], centroid[1], centroid[2]);
+    //Eigen::Vector4f hand_centroid;
+    //pcl::compute3DCentroid(*processed_cloud, hand_centroid);
+    //RCLCPP_INFO(get_logger(), "Center of mass: (%.4f, %.4f, %.4f)", hand_centroid[0], hand_centroid[1], hand_centroid[2]);
+    Eigen::Vector4f wrist_point = Eigen::Vector4f(right_hand_x, right_hand_y, right_hand_z,1);
+    //RCLCPP_INFO(get_logger(), "distance: (%.4f)", distanceComputing(tool_max_point, wrist_point));
 
-    float distance_threshold = 0.16;
-
-    if (!isnan(tool_max_point[0]) && distanceComputing(tool_max_point, hand_centroid)> distance_threshold){
+    float distance_threshold = 0.12;
+    
+    if (!isnan(tool_max_point[0]) && distanceComputing(tool_max_point, wrist_point)> distance_threshold){
       RCLCPP_INFO(get_logger(), "Tool in hand!!!!!!!!!!!!!");
+      ToolInHand_msg.data = true;
+      tool_inhand_pub->publish(ToolInHand_msg);
 
       // search for the nearest points from max point to compute the centroid
       // and so to get the tool grasping position
@@ -666,7 +674,7 @@ private:
       Eigen::Vector4f toolgrasp_centroid;
       // tool grasping position is toolgrasp_centroid
       pcl::compute3DCentroid(max_cloud_const, toolgrasp_centroid);
-      printf("toolgrasp_position: %f, %f, %f \n",toolgrasp_centroid(0),toolgrasp_centroid(1),toolgrasp_centroid(2));
+      //printf("toolgrasp_position: %.4f, %.4f, %.4f \n",toolgrasp_centroid(0),toolgrasp_centroid(1),toolgrasp_centroid(2));
 
 
       // get the angle to grasp the tool
@@ -675,7 +683,7 @@ private:
       //unit vectors
       const Eigen::Vector3f x_vector = Eigen::Vector3f(1,0,0);
       const Eigen::Vector3f y_vector = Eigen::Vector3f(0,1,0);
-      const Eigen::Vector3f z_vector = Eigen::Vector3f(0,0,1);
+      //const Eigen::Vector3f z_vector = Eigen::Vector3f(0,0,1);
       //for roll
       double R_angle = std::acos((tool_vector-tool_vector.dot(x_vector)*x_vector).normalized().dot(y_vector));
       //for pitch
@@ -683,7 +691,7 @@ private:
 
       float roll_command_deg = pcl::rad2deg(R_angle+angles::from_degrees(-180));
       float pitch_command_deg = pcl::rad2deg(-P_angle+angles::from_degrees(90));
-      printf("roll: %f, pitch: %f \n", roll_command_deg, pitch_command_deg);
+      //printf("roll: %.4f, pitch: %.4f \n", roll_command_deg, pitch_command_deg);
 
       // publish tool grasping position
       std_msgs::msg::Float32MultiArray tool_grasping_position_msg;
@@ -693,13 +701,12 @@ private:
 
     } else {
       RCLCPP_INFO(get_logger(), "Tool not in hand");
+      std_msgs::msg::Float32MultiArray tool_grasping_position_msg;
+      tool_grasping_position_msg.data = {wrist_point(0),wrist_point(1),wrist_point(2)};
+      tool_grasping_pub->publish(tool_grasping_position_msg);
+      ToolInHand_msg.data = false;
+      tool_inhand_pub->publish(ToolInHand_msg);
     }
-
-
-    
-
-  
-   
     
 
 
@@ -717,52 +724,22 @@ private:
   void processFloatArray(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
   {
     // Process float array data here
-    float_array_data_ = msg->data[0];
-    float right_hand_x_cam2 = msg->data[0];
-    float right_hand_y_cam2 = msg->data[1];
-    float right_hand_z_cam2 = msg->data[2];
-
-    float right_elbow_x_cam2 = msg->data[3];
-    float right_elbow_y_cam2 = msg->data[4];
-    float right_elbow_z_cam2 = msg->data[5];
-
-    // Define the transformation matrix from cam2 to cam1
-    Eigen::Matrix4f cam2_to_cam1_transform;
-    cam2_to_cam1_transform << 1, 0, 0, -0.1,
-                              0, 1, 0, 0,
-                              0, 0, 1, 0,
-                              0, 0, 0, 1;
-
-    // Transform the right hand position from cam2 to cam1
-    Eigen::Vector4f right_hand_pos_cam2(right_hand_x_cam2, right_hand_y_cam2, right_hand_z_cam2, 1);
-    Eigen::Vector4f right_hand_pos_cam1 = cam2_to_cam1_transform * right_hand_pos_cam2;
-    float right_hand_x_cam1 = right_hand_pos_cam1(0);
-    float right_hand_y_cam1 = right_hand_pos_cam1(1);
-    float right_hand_z_cam1 = right_hand_pos_cam1(2);
-
-    // Transform the right elbow position from cam2 to cam1
-    Eigen::Vector4f right_elbow_pos_cam2(right_elbow_x_cam2, right_elbow_y_cam2, right_elbow_z_cam2, 1);
-    Eigen::Vector4f right_elbow_pos_cam1 = cam2_to_cam1_transform * right_elbow_pos_cam2;
-    float right_elbow_x_cam1 = right_elbow_pos_cam1(0);
-    float right_elbow_y_cam1 = right_elbow_pos_cam1(1);
-    float right_elbow_z_cam1 = right_elbow_pos_cam1(2);
-
-    // Use the processed data to process the point cloud data in processPointCloud() function
-    right_hand_x = right_hand_x_cam1;
-    right_hand_y = right_hand_y_cam1;
-    right_hand_z = right_hand_z_cam1;
-
-    right_elbow_x = right_elbow_x_cam1;
-    right_elbow_y = right_elbow_y_cam1;
-    right_elbow_z = right_elbow_z_cam1;
-
+    
+    right_hand_x = msg->data[0];
+    right_hand_y = msg->data[1];
+    right_hand_z = msg->data[2];
+    right_elbow_x = msg->data[3];
+    right_elbow_y = msg->data[4];
+    right_elbow_z = msg->data[5];
+    //printf("%f,%f,%f,%f,%f,%f \n",right_hand_x,right_hand_y,right_hand_z,right_elbow_x,right_elbow_y,right_elbow_z);
+    //RCLCPP_INFO(get_logger(), "wrist:%.4f,%.4f,%.4f,elbow:%.4f,%.4f,%.4f", right_hand_x,right_hand_y,right_hand_z,right_elbow_x,right_elbow_y,right_elbow_z);
 
     // check right hand is in workcell
     //printf("xyz: %.4f, %.4f, %.4f \n", right_hand_x, right_hand_y, right_hand_z);
     if (is_in_the_cell()){
-      float distance = std::sqrt(std::pow(right_hand_x - prev_x, 2) +
-                                 std::pow(right_hand_y - prev_y, 2) +
-                                 std::pow(right_hand_z - prev_z, 2));
+      float distance = std::sqrt(std::pow(right_elbow_x - prev_x, 2) +
+                                 std::pow(right_elbow_y - prev_y, 2) +
+                                 std::pow(right_elbow_z - prev_z, 2));
       
 
       if (distance > 0.01){
@@ -772,16 +749,19 @@ private:
       }
 
       if (timer_duration > static_hand_duration){
-        //RCLCPP_INFO(this->get_logger(), "Handover triggered!!!!!!!!!!!!!!!!!!");
+        RCLCPP_INFO(this->get_logger(), "Handover triggered");
         
         handover_trigged_msg.data = true;
+        handover_bool_pub->publish(handover_trigged_msg);
+      } else {
+        handover_trigged_msg.data = false;
         handover_bool_pub->publish(handover_trigged_msg);
       }
 
       // Update previous position and time
-      prev_x = right_hand_x;
-      prev_y = right_hand_y;
-      prev_z = right_hand_z;
+      prev_x = right_elbow_x;
+      prev_y = right_elbow_y;
+      prev_z = right_elbow_z;
       prev_time = this->now();
       handover_trigged_msg.data = false;
     }
@@ -797,4 +777,6 @@ int main(int argc, char * argv[])
   rclcpp::shutdown();
   return 0;
 }
+
+
 

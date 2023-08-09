@@ -938,9 +938,12 @@ private:
   geometry_msgs::msg::Pose getGraspGivePosition(const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
 	// convert the coordinate system, because the xyz coordinate of Point cloud and ur10e robot are different
 	geometry_msgs::msg::Pose pose;
-	pose.position.x = msg->data[2];
-	pose.position.y = -msg->data[0];
-	pose.position.z = -msg->data[1];
+	//pose.position.x = msg->data[2];
+	//pose.position.y = -msg->data[0];
+	//pose.position.z = -msg->data[1];
+	pose.position.x = msg->data[0];
+	pose.position.y = msg->data[1];
+	pose.position.z = msg->data[2];
 	tf2::Quaternion q;
 	double roll = 0, pitch = M_PI/2, yaw = 0;  // All in radians
 	q.setRPY(roll, pitch, yaw);
