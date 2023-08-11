@@ -21,7 +21,7 @@ find_package(ur_msgs REQUIRED)
 #find_package(robot_model_loader REQUIRED)
 #find_package(robot_state REQUIRED)
 
-
+# robot_speed_separation.cpp
 add_executable(robot_speed_separation src/robot_speed_separation.cpp)
 target_include_directories(robot_speed_separation PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -37,15 +37,30 @@ ament_target_dependencies(
   "pcl_conversions"
   "angles"
   "ur_msgs"
-#  "robot_model"
-#  "robot_model_loader"
-#  "robot_state"
 )
 
+# min_distance.cpp
+add_executable(min_distance src/min_distance.cpp)
+target_include_directories(min_distance PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(min_distance PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(
+  min_distance
+  "moveit_ros_planning_interface"
+  "rclcpp"
+  "std_msgs"
+  "sensor_msgs"
+  "PCL"
+  "pcl_conversions"
+  "angles"
+  "ur_msgs"
+)
 
 
 install(TARGETS 
   robot_speed_separation
+  min_distance
   DESTINATION lib/${PROJECT_NAME})
 
 # Install launch files.

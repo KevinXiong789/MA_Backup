@@ -247,8 +247,8 @@ class NuitrackApp : public rclcpp::Node
 public:
     NuitrackApp() : Node("nuitrack_app")
     {
-        // Initialize ROS 2 publisher
-        joints_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/Nuitrack/right_hand", 10);
+        joints_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/Nuitrack/joints_position", 10);
+        hand_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/Nuitrack/right_hand", 10);
         // Initialize publishers for depth image and point cloud
         depth_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/Nuitrack/depth_cloud", 10);
         marker_array_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/Nuitrack/joint_markers", 10);
@@ -284,6 +284,16 @@ private:
     void onSkeletonUpdate(SkeletonData::Ptr skeletonData)
     {
         const std::vector<Skeleton> skeletons = skeletonData->getSkeletons();
+
+        if (skeletons.empty()) {
+            // Publish the specific message when skeletons is empty
+            std_msgs::msg::Float32MultiArray empty_message;
+            empty_message.data = {100.0, 100.0};
+            joints_publisher_->publish(empty_message);
+            RCLCPP_INFO(this->get_logger(), "Nobody is in the area.");
+            return;  // Return early to avoid the remaining logic
+        }
+        
         for (const Skeleton& skeleton : skeletons) {
             // Get Right Hand joint
             const Joint& rightHand = skeleton.joints[JOINT_RIGHT_HAND];
@@ -303,7 +313,32 @@ private:
                 rightElbow_x, rightElbow_y, rightElbow_z
             };
             
-            joints_publisher_->publish(joint_coordinates);
+            hand_publisher_->publish(joint_coordinates);
+
+            std_msgs::msg::Float32MultiArray all_joints_coordinates;
+
+            const Joint& head = skeleton.joints[JOINT_HEAD];
+            const Joint& leftShoulder = skeleton.joints[JOINT_LEFT_SHOULDER];
+            const Joint& rightShoulder = skeleton.joints[JOINT_RIGHT_SHOULDER];
+            const Joint& leftElbow = skeleton.joints[JOINT_LEFT_ELBOW];
+            const Joint& leftHand = skeleton.joints[JOINT_LEFT_HAND];
+            // Note: rightElbow and rightHand have been defined above.
+
+            all_joints_coordinates.data = {
+                head.real.z / 1000.0, -head.real.x / 1000.0, head.real.y / 1000.0,
+                leftShoulder.real.z / 1000.0, -leftShoulder.real.x / 1000.0, leftShoulder.real.y / 1000.0,
+                rightShoulder.real.z / 1000.0, -rightShoulder.real.x / 1000.0, rightShoulder.real.y / 1000.0,
+                leftElbow.real.z / 1000.0, -leftElbow.real.x / 1000.0, leftElbow.real.y / 1000.0,
+                leftHand.real.z / 1000.0, -leftHand.real.x / 1000.0, leftHand.real.y / 1000.0,
+                rightElbow_x, rightElbow_y, rightElbow_z,
+                rightHand_x, rightHand_y, rightHand_z
+            };
+
+            joints_publisher_->publish(all_joints_coordinates);
+
+
+
+
             /*
             std::cout << "Detected skeleton with ID: " << skeleton.id
                     << ". Right Hand Position (X, Y, Z): " 
@@ -416,9 +451,11 @@ private:
 private:
     SkeletonTracker::Ptr skeletonTracker_;
     DepthSensor::Ptr depthSensor_;
-    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr joints_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr hand_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr depth_cloud_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_array_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr joints_publisher_;
+
 };
 
 int main(int argc, char** argv)

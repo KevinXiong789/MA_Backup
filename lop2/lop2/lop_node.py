@@ -139,6 +139,8 @@ class Lop (rclpy.node.Node):
 		# ************************************************************************************************
 		# Publisher for handposition
 		self.handposition_publisher = self.create_publisher(Float32MultiArray, '/Openpose/hand_position', 10)
+		# Publisher upper limb joint positions
+		self.jointsposition_publisher = self.create_publisher(Float32MultiArray, '/Openpose/joints_position', 10)
 		# ************************************************************************************************
 
 
@@ -260,6 +262,25 @@ class Lop (rclpy.node.Node):
 			
 			# *******************************************
 			
+			# *********get upper limb Joint point Position and publish***********************************
+			
+
+
+			data_to_publish = []
+			for i in range(8): # upper limb Joint Point
+				if pose_3d.points[i] is not None:
+					data_to_publish.extend(pose_3d.points[i])
+
+				else:
+					data_to_publish.extend([float('nan'), float('nan'), float('nan')])
+
+			msg = Float32MultiArray()
+			msg.data = data_to_publish
+			self.jointsposition_publisher.publish(msg)
+			#self.get_logger().info('Joint positions published.')  
+			# ********************************************************************************************
+
+
 			# **********get right wrist and elbow position and publish***********************************
 			if (pose_3d.points[4] is not None) and (pose_3d.points[3] is not None) and (people_ID == 1):
 				msg = Float32MultiArray()
@@ -268,7 +289,11 @@ class Lop (rclpy.node.Node):
 		
 			# *******************************************************************************************
 			
-
+		if not poses_3d:
+			msg = Float32MultiArray()
+			msg.data = [100.0, 100.0]
+			self.jointsposition_publisher.publish(msg)
+			#self.get_logger().info('No valid 3D poses detected.')
 
 
 		self.create_pose_markers(poses_3d)

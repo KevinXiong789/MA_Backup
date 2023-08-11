@@ -17,6 +17,7 @@
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/passthrough.h>
 #include <pcl/common/centroid.h>
 #include <pcl/common/common.h>
 #include <pcl/common/angles.h>
@@ -100,6 +101,27 @@ private:
     // Convert PointCloud2 to PCL PointCloud
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*msg, *pcl_cloud);
+/*
+    // 在z方向上进行裁剪，1.5米之内
+    pcl::PassThrough<pcl::PointXYZ> pass;
+    pass.setInputCloud(pcl_cloud);
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(0, 1.5);
+    pass.filter(*pcl_cloud);
+
+    // 使用VoxelGrid过滤
+    pcl::VoxelGrid<pcl::PointXYZ> voxel_grid;
+    voxel_grid.setInputCloud(pcl_cloud);
+    voxel_grid.setLeafSize(0.02f, 0.02f, 0.02f);
+    voxel_grid.filter(*pcl_cloud);
+
+    // 使用SOR过滤
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
+    sor.setInputCloud(pcl_cloud);
+    sor.setMeanK(30);
+    sor.setStddevMulThresh(1.0);
+    sor.filter(*pcl_cloud);
+*/
 
     // Crop point cloud around right hand
     pcl::CropBox<pcl::PointXYZ> crop_filter;
@@ -222,7 +244,7 @@ private:
       ToolInHand_msg.data = false;
       tool_inhand_pub->publish(ToolInHand_msg);
     }
-    
+
 
 
     // convert pcl to Pointcloud2
@@ -230,6 +252,7 @@ private:
     //processed_cloud->height = processed_cloud->points.size();
     sensor_msgs::msg::PointCloud2 processed_cloud_msg;
     pcl::toROSMsg(*processed_cloud, processed_cloud_msg);
+    //pcl::toROSMsg(*pcl_cloud, processed_cloud_msg);
     processed_cloud_msg.header = msg->header;
 
     // Publish the processed point cloud
