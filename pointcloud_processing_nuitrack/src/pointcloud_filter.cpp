@@ -1,73 +1,70 @@
-/*this node subscribe the raw pointcloud, then do some cropping, voxelation and filter*/
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl/filters/crop_box.h>
+#include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 
 class PointCloudProcessor : public rclcpp::Node
 {
 public:
-	PointCloudProcessor() : Node("pointcloud_processor")
-	{
-	// Subscribe to the PointCloud message
-	subscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-				"/camera/depth/color/points", rclcpp::QoS(10),
-				std::bind(&PointCloudProcessor::pointCloudCallback, this, std::placeholders::_1));
-
-	// Create a publisher for the processed point cloud
-	publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
-				"processed_pointcloud", rclcpp::QoS(10));
-	}
+  PointCloudProcessor() : Node("point_cloud_processor")
+  {
+    subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+      //"/camera/depth/color/points", 10, std::bind(&PointCloudProcessor::pointcloud_callback, this, std::placeholders::_1));
+      "/Nuitrack/depth_cloud", 10, std::bind(&PointCloudProcessor::pointcloud_callback, this, std::placeholders::_1));
+    pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/filter/new_pointcloud", 10);
+  }
 
 private:
-	rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscriber_;
-	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
-  
-	void pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
-	{
-	// Convert sensor_msgs::PointCloud2 to pcl::PointCloud<pcl::PointXYZ>
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::fromROSMsg(*msg, *cloud);
+  void pointcloud_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+  {
+    // 转换为PCL点云
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::fromROSMsg(*msg, *cloud);
 
-	// Crop the point cloud in a box
-	float crop_center_x_ = 0.0;
-	float crop_center_y_ = 0.0;
-	float crop_center_z_ = 0.5;
+    // 去除RGB信息
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_without_color(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::copyPointCloud(*cloud, *cloud_without_color);
 
-	pcl::CropBox<pcl::PointXYZ> crop_filter;
-	crop_filter.setTranslation(Eigen::Vector3f(crop_center_x_, crop_center_y_, crop_center_z_));
-	crop_filter.setInputCloud(cloud);
-	crop_filter.setMin(Eigen::Vector4f(-0.5, -0.5, -0.5, 1.0));
-	crop_filter.setMax(Eigen::Vector4f(0.5, 0.5, 0.5, 1.0));
-	crop_filter.filter(*cloud);
+    // 在z方向上进行裁剪，1.5米之内
+    pcl::PassThrough<pcl::PointXYZ> pass;
+    pass.setInputCloud(cloud_without_color);
+    pass.setFilterFieldName("x");
+    pass.setFilterLimits(0, 1.5);
+    pass.filter(*cloud_without_color);
 
-	// Apply VoxelGrid filtering
-	pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
-	voxel_filter.setInputCloud(cloud);
-	voxel_filter.setLeafSize(0.01, 0.01, 0.01); // Adjust the leaf size according to your requirements
-	pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	voxel_filter.filter(*filtered_cloud);
+    // 使用VoxelGrid过滤
+    pcl::VoxelGrid<pcl::PointXYZ> voxel_grid;
+    voxel_grid.setInputCloud(cloud_without_color);
+    voxel_grid.setLeafSize(0.02f, 0.02f, 0.02f);
+    voxel_grid.filter(*cloud_without_color);
 
-	// Convert pcl::PointCloud<pcl::PointXYZ> back to sensor_msgs::PointCloud2
-	sensor_msgs::msg::PointCloud2 filtered_msg;
-	pcl::toROSMsg(*filtered_cloud, filtered_msg);
-	filtered_msg.header = msg->header;
+    // 使用SOR过滤
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
+    sor.setInputCloud(cloud_without_color);
+    sor.setMeanK(50);
+    sor.setStddevMulThresh(1.0);
+    sor.filter(*cloud_without_color);
 
-	// Publish the processed point cloud
-	publisher_->publish(filtered_msg);
-	}
+    // 转换回sensor_msgs::msg::PointCloud2并发布
+    sensor_msgs::msg::PointCloud2 output;
+    pcl::toROSMsg(*cloud_without_color, output);
+    output.header = msg->header;
+    pub_->publish(output);
+  }
 
-
-
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_;
 };
 
 int main(int argc, char *argv[])
 {
-	rclcpp::init(argc, argv);
-	auto node = std::make_shared<PointCloudProcessor>();
-	rclcpp::spin(node);
-	rclcpp::shutdown();
-	return 0;
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<PointCloudProcessor>());
+  rclcpp::shutdown();
+  return 0;
 }
 

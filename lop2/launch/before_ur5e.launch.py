@@ -91,13 +91,6 @@ def generate_launch_description():
 	)
 	ld.add_action(static_transform_publisher)
 	
-	
-	nuitrack_node = launch_ros.actions.Node(
-		package='nuitrack_pointcloud',
-		executable='nuitrack_skeleton_pointcloud',
-		output='screen'
-	)
-	#ld.add_action(nuitrack_node)
 
 	static_transform_publisher2  = launch_ros.actions.Node(
 		package='tf2_ros',
@@ -107,7 +100,7 @@ def generate_launch_description():
 				'world','camera_link'],
 		#output='screen'
 	)
-	ld.add_action(static_transform_publisher2)
+	#ld.add_action(static_transform_publisher2)
 	
 
 	# Add execute process for launching ur_robot_driver
@@ -128,6 +121,14 @@ def generate_launch_description():
 	ld.add_action(ur_moveit_config_launch)
 	
 	
+	multipointcloud_node = launch_ros.actions.Node(
+		package='pointcloud_processing',
+		executable='multi_pointcloud',
+		output='screen'
+	)
+	ld.add_action(multipointcloud_node)
+
+
 	# Define a timer to trigger the execution of a C++ file after 10 seconds
 	handover_after10 = TimerAction(period=10.0, actions=[
 		ExecuteProcess(
@@ -135,7 +136,7 @@ def generate_launch_description():
 			output='screen'
 		)
 	])
-	ld.add_action(handover_after10)
+	#ld.add_action(handover_after10)
 
 	
 	return ld

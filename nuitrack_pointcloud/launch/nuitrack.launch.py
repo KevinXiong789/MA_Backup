@@ -61,6 +61,13 @@ def generate_launch_description():
 		output='screen'
 	)
 	ld.add_action(ur_moveit_config_launch)
+
+	pointcloud_filter_node = launch_ros.actions.Node(
+		package='pointcloud_processing_nuitrack',
+		executable='pointcloud_filter',
+		output='screen'
+	)
+	ld.add_action(pointcloud_filter_node)
 	
 	
 	# Define a timer to trigger the execution of a C++ file after 10 seconds

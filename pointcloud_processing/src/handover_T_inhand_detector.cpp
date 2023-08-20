@@ -31,6 +31,8 @@ public:
     // Subscribe to the point cloud topic
     pcl_subscriber_ = create_subscription<sensor_msgs::msg::PointCloud2>(
       "/camera/depth/color/points", 10, std::bind(&SubscriberNode::processPointCloud, this, std::placeholders::_1));
+      //"/transformed_points", 10, std::bind(&SubscriberNode::processPointCloud, this, std::placeholders::_1));
+      //"/filter/new_pointcloud", 10, std::bind(&SubscriberNode::processPointCloud, this, std::placeholders::_1));
 
     // Subscribe to the Float32MultiArray topic
     float_array_subscriber_ = create_subscription<std_msgs::msg::Float32MultiArray>(
@@ -129,8 +131,8 @@ private:
     crop_filter.setTranslation(Eigen::Vector3f(right_hand_x, right_hand_y, right_hand_z));
     crop_filter.setInputCloud(pcl_cloud);
     // Set the size of the crop box to 0.2 x 0.2 x 0.2
-    Eigen::Vector4f min_point(-0.2, -0.2, -0.2, 1);
-    Eigen::Vector4f max_point(0.2, 0.2, 0.2, 1);
+    Eigen::Vector4f min_point(-0.15, -0.15, -0.15, 1);
+    Eigen::Vector4f max_point(0.15, 0.15, 0.15, 1);
     crop_filter.setMin(min_point);
     crop_filter.setMax(max_point);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cropped_cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -140,17 +142,20 @@ private:
     // Check if the cropped_cloud is empty before applying the VoxelGrid filter
     // with this VoxelGrid filter, FPS>29
     pcl::PointCloud<pcl::PointXYZ>::Ptr processed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    
     if (!cropped_cloud->empty()){
       // VoxelGrid Filter point cloud around right hand
       pcl::PointCloud<pcl::PointXYZ>::Ptr filter_1_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+      
       pcl::VoxelGrid <pcl::PointXYZ> vg_filter;
       vg_filter.setInputCloud(cropped_cloud);
       vg_filter.setLeafSize(0.01f,0.01f,0.01f);
       vg_filter.filter(*filter_1_cloud);
-
+      
       // add SOR filter, after vg filter,sor filter works good, FPS>29
       pcl::StatisticalOutlierRemoval <pcl::PointXYZ> SOR_filter;
       SOR_filter.setInputCloud(filter_1_cloud);
+      //SOR_filter.setInputCloud(cropped_cloud);
       SOR_filter.setMeanK(30);
       SOR_filter.setStddevMulThresh(1);
       SOR_filter.filter(*processed_cloud);
@@ -158,7 +163,8 @@ private:
     } else {
       *processed_cloud = *cropped_cloud;
     }
-
+    
+    
 
     
     pcl::PointCloud<pcl::PointXYZ> processed_cloud_const = *processed_cloud;

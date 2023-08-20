@@ -15,7 +15,9 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
 find_package(tf2 REQUIRED)
-
+find_package(tf2_ros REQUIRED)
+find_package(tf2_eigen REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 #find_package(PCL REQUIRED COMPONENTS common io)
 #find_package(PCL REQUIRED COMPONENTS filters)
@@ -57,6 +59,9 @@ ament_target_dependencies(multi_pointcloud
   pcl_conversions
   angles
   tf2
+  tf2_eigen
+  tf2_ros
+  Eigen3
 )
 target_link_libraries(multi_pointcloud ${PCL_COMMON_LIBRARIES} ${PCL_IO_LIBRARIES} ${PCL_FILTERS_LIBRARIES} ${PCL_SEGMENTATION_LIBRARIES} ${PCL_SAMPLE_CONSENSUS_LIBRARIES} ${PCL_SURFACE_LIBRARIES})
 

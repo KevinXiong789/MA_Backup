@@ -27,8 +27,8 @@ include_directories(
 )
 link_directories("/usr/local/lib/nuitrack")
 
+# nuitrack_skeleton_pointcloud.cpp
 add_executable(nuitrack_skeleton_pointcloud src/nuitrack_skeleton_pointcloud.cpp)
-
 ament_target_dependencies(nuitrack_skeleton_pointcloud 
   rclcpp 
   std_msgs
@@ -37,9 +37,22 @@ ament_target_dependencies(nuitrack_skeleton_pointcloud
   visualization_msgs)
 target_link_libraries(nuitrack_skeleton_pointcloud nuitrack ${OpenCV_LIBS})
 
+# nuitrack_skeleton_pointcloud_camera2.cpp
+add_executable(nuitrack_skeleton_pointcloud_camera2 src/nuitrack_skeleton_pointcloud_camera2.cpp)
+ament_target_dependencies(nuitrack_skeleton_pointcloud_camera2 
+  rclcpp 
+  std_msgs
+  sensor_msgs
+  geometry_msgs
+  visualization_msgs)
+target_link_libraries(nuitrack_skeleton_pointcloud_camera2 nuitrack ${OpenCV_LIBS})
+
+
+
 #Don't forget add executable name here
 install(TARGETS
     nuitrack_skeleton_pointcloud
+    nuitrack_skeleton_pointcloud_camera2
     DESTINATION lib/${PROJECT_NAME}) 
 
 # Install launch files.

@@ -515,6 +515,7 @@ public:
     // Subscribe to the point cloud topic
     pcl_subscriber_ = create_subscription<sensor_msgs::msg::PointCloud2>(
       "/Nuitrack/depth_cloud", 10, std::bind(&SubscriberNode::processPointCloud, this, std::placeholders::_1));
+      //"/filter/new_pointcloud", 10, std::bind(&SubscriberNode::processPointCloud, this, std::placeholders::_1));
 
     // Subscribe to the Float32MultiArray topic
     float_array_subscriber_ = create_subscription<std_msgs::msg::Float32MultiArray>(
@@ -626,15 +627,17 @@ private:
     pcl::PointCloud<pcl::PointXYZ>::Ptr processed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     if (!cropped_cloud->empty()){
       // VoxelGrid Filter point cloud around right hand
+      
       pcl::PointCloud<pcl::PointXYZ>::Ptr filter_1_cloud(new pcl::PointCloud<pcl::PointXYZ>);
       pcl::VoxelGrid <pcl::PointXYZ> vg_filter;
       vg_filter.setInputCloud(cropped_cloud);
       vg_filter.setLeafSize(0.01f,0.01f,0.01f);
       vg_filter.filter(*filter_1_cloud);
-
+      
       // add SOR filter, after vg filter,sor filter works good, FPS>29
       pcl::StatisticalOutlierRemoval <pcl::PointXYZ> SOR_filter;
       SOR_filter.setInputCloud(filter_1_cloud);
+      //SOR_filter.setInputCloud(cropped_cloud);
       SOR_filter.setMeanK(30);
       SOR_filter.setStddevMulThresh(1);
       SOR_filter.filter(*processed_cloud);
