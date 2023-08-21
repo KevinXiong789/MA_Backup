@@ -84,7 +84,7 @@ def generate_launch_description():
 	static_transform_publisher  = launch_ros.actions.Node(
 		package='tf2_ros',
 		executable='static_transform_publisher',
-		arguments=['0.3', '0.0', '0.0',
+		arguments=['0.0', '0.0', '0.0',
 				'0.0', '0.0', '0.0',
 				'world','camera_link'],
 		#output='screen'

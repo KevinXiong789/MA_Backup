@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 
 
 
-
+/*
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -172,11 +172,19 @@ private:
         pcl::PointCloud<pcl::PointXYZ> pcl_cloud;
         pcl::fromROSMsg(*msg, pcl_cloud);
 
+        // crop part point cloud in z axis (camera coordinate)
+        pcl::PassThrough<pcl::PointXYZ> pass;
+        pass.setInputCloud(pcl_cloud.makeShared());
+        pass.setFilterFieldName("z");
+        pass.setFilterLimits(0.0, 1.5);
+        pass.filter(pcl_cloud); 
+
         // Step 2: Perform the coordinate transformation
         geometry_msgs::msg::TransformStamped transform;
         try
         {
-            transform = buffer_->lookupTransform("camera_depth_optical_frame", "world", tf2::TimePointZero);
+            transform = buffer_->lookupTransform("world", "camera_depth_optical_frame", tf2::TimePointZero);
+            //RCLCPP_INFO(this->get_logger(), "msg frame is %s", msg->header.frame_id.c_str());
         }
         catch (tf2::TransformException &ex)
         {
@@ -199,24 +207,7 @@ private:
         // Apply the transform to the point cloud
         pcl::PointCloud<pcl::PointXYZ> transformed_cloud;
         pcl::transformPointCloud(pcl_cloud, transformed_cloud, eigen_transform);
-/*
-        // Apply filters
-        pcl::PassThrough<pcl::PointXYZ> pass;
-        pass.setInputCloud(transformed_cloud.makeShared());
-        pass.setFilterFieldName("y");
-        pass.setFilterLimits(-1.5, 1.5);
-        pass.filter(transformed_cloud);
 
-        pass.setInputCloud(transformed_cloud.makeShared());
-        pass.setFilterFieldName("x");
-        pass.setFilterLimits(-1.0, 1.0);
-        pass.filter(transformed_cloud);
-
-        pass.setInputCloud(transformed_cloud.makeShared());
-        pass.setFilterFieldName("z");
-        pass.setFilterLimits(0.0, 1.0);
-        pass.filter(transformed_cloud);
-*/
         // Step 3: Convert the transformed PCL point cloud back to a ROS message
         sensor_msgs::msg::PointCloud2 transformed_msg;
         pcl::toROSMsg(transformed_cloud, transformed_msg);
@@ -228,7 +219,7 @@ private:
         publisher_->publish(transformed_msg);
     }
     
-    /*
+    
     // manual set Transformation Matrix
     void pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
     {
@@ -283,7 +274,7 @@ private:
 
         publisher_->publish(transformed);
     }
-    */
+    
 
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
@@ -299,10 +290,344 @@ int main(int argc, char * argv[])
   rclcpp::shutdown();
   return 0;
 }
+*/
 
 
 
+/*
+// subscribe multi point cloud, do transformation and publish
+// this methode is get 3 pointcloud then merged and publish
+#include <memory>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <tf2_ros/buffer.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/common/transforms.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+#include <vector>
+
+class PointCloudTransformer : public rclcpp::Node
+{
+public:
+    PointCloudTransformer() : Node("pointcloud_transformer")
+    {
+        publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/merged_transformed_points", 10);
+        filtered_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/filtered_transformed_points", 10);
+        
+        subscriptions_.push_back(this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            topic_names_[0], 10, std::bind(&PointCloudTransformer::pointCloudCallback1, this, std::placeholders::_1)));
+        subscriptions_.push_back(this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            topic_names_[1], 10, std::bind(&PointCloudTransformer::pointCloudCallback2, this, std::placeholders::_1)));
+        subscriptions_.push_back(this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            topic_names_[2], 10, std::bind(&PointCloudTransformer::pointCloudCallback3, this, std::placeholders::_1)));
+
+        buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+        listener_ = std::make_shared<tf2_ros::TransformListener>(*buffer_);
+    }
+
+private:
+    void processCloud(const sensor_msgs::msg::PointCloud2::SharedPtr msg, size_t index)
+    {
+        // Convert ROS message to PCL point cloud
+        pcl::PointCloud<pcl::PointXYZ> pcl_cloud;
+        pcl::fromROSMsg(*msg, pcl_cloud);
+
+        // Crop the point cloud in z-axis (camera coordinate)
+        pcl::PassThrough<pcl::PointXYZ> pass;
+        pass.setInputCloud(pcl_cloud.makeShared());
+        pass.setFilterFieldName("z");
+        pass.setFilterLimits(0.0, 1.5);
+        pass.filter(pcl_cloud); 
+
+        // Coordinate transformation
+        geometry_msgs::msg::TransformStamped transform;
+        try
+        {
+            transform = buffer_->lookupTransform("world", frames_[index], tf2::TimePointZero);
+        }
+        catch (tf2::TransformException &ex)
+        {
+            RCLCPP_WARN(this->get_logger(), "%s", ex.what());
+            return;
+        }
+
+        // Extract rotation and translation
+        Eigen::Matrix4f eigen_transform = Eigen::Matrix4f::Identity();
+        eigen_transform.block<3, 3>(0, 0) = Eigen::Quaternionf(
+            transform.transform.rotation.w,
+            transform.transform.rotation.x,
+            transform.transform.rotation.y,
+            transform.transform.rotation.z
+        ).toRotationMatrix();
+        eigen_transform(0, 3) = transform.transform.translation.x;
+        eigen_transform(1, 3) = transform.transform.translation.y;
+        eigen_transform(2, 3) = transform.transform.translation.z;
+
+        // Apply the transform
+        pcl::PointCloud<pcl::PointXYZ> transformed_cloud;
+        pcl::transformPointCloud(pcl_cloud, transformed_cloud, eigen_transform);
+
+        // Store in the buffer
+        clouds_buffer_[index] = transformed_cloud;
+
+        // Check if all clouds are available
+        if (std::all_of(clouds_buffer_.begin(), clouds_buffer_.end(), [](const auto& cloud) { return !cloud.empty(); }))
+        {
+            // Merge point clouds
+            pcl::PointCloud<pcl::PointXYZ> merged_cloud;
+            for (const auto& cloud : clouds_buffer_)
+            {
+                merged_cloud += cloud;
+            }
+
+            // Convert the merged PCL point cloud back to a ROS message
+            sensor_msgs::msg::PointCloud2 transformed_msg;
+            pcl::toROSMsg(merged_cloud, transformed_msg);
+
+            // Use the header from the first cloud
+            transformed_msg.header = msg->header;
+
+            // Publish
+            publisher_->publish(transformed_msg);
+
+            publishFilteredPointCloud(merged_cloud);
+            
+            // Clear the buffer
+            for (auto& cloud : clouds_buffer_)
+            {
+                cloud.clear();
+            }
+        }
+    }
+
+    void pointCloudCallback1(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+    {
+        processCloud(msg, 0);
+    }
+
+    void pointCloudCallback2(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+    {
+        processCloud(msg, 1);
+    }
+
+    void pointCloudCallback3(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+    {
+        processCloud(msg, 2);
+    }
+
+    void publishFilteredPointCloud(const pcl::PointCloud<pcl::PointXYZ>& merged_cloud)
+    {
+        pcl::PointCloud<pcl::PointXYZ> cloud_without_color = merged_cloud;
+
+        // VoxelGrid
+        pcl::VoxelGrid<pcl::PointXYZ> voxel_grid;
+        voxel_grid.setInputCloud(cloud_without_color.makeShared());
+        voxel_grid.setLeafSize(0.02f, 0.02f, 0.02f);
+        voxel_grid.filter(cloud_without_color);
+
+        // SOR
+        pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
+        sor.setInputCloud(cloud_without_color.makeShared());
+        sor.setMeanK(50);
+        sor.setStddevMulThresh(1.0);
+        sor.filter(cloud_without_color);
+
+        // Convert the filtered PCL point cloud back to a ROS message
+        sensor_msgs::msg::PointCloud2 filtered_msg;
+        pcl::toROSMsg(cloud_without_color, filtered_msg);
+
+        // Publish
+        filtered_publisher_->publish(filtered_msg);
+    }
+
+    const std::vector<std::string> topic_names_ = {"/camera1/depth/color/points", "/camera2/depth/color/points", "/camera3/depth/color/points"};
+    const std::vector<std::string> frames_ = {"camera1_depth_optical_frame", "camera2_depth_optical_frame", "camera3_depth_optical_frame"};
+    std::vector<rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr> subscriptions_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_publisher_;
+    std::shared_ptr<tf2_ros::Buffer> buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> listener_;
+    std::vector<pcl::PointCloud<pcl::PointXYZ>> clouds_buffer_ = std::vector<pcl::PointCloud<pcl::PointXYZ>>(topic_names_.size());
+
+};
+
+int main(int argc, char * argv[])
+{
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<PointCloudTransformer>());
+  rclcpp::shutdown();
+  return 0;
+}
+*/
 
 
 
+// subscribe multi point cloud, do transformation and publish
+// better structure
+#include <memory>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <tf2_ros/buffer.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/common/transforms.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/passthrough.h>
+#include <vector>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+
+class PointCloudTransformer : public rclcpp::Node
+{
+public:
+    PointCloudTransformer() : Node("pointcloud_transformer")
+    {
+        publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/merged_points", 10);
+
+        subscription1_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            "/camera/depth1/color/points", 10, std::bind(&PointCloudTransformer::pointCloudCallback1, this, std::placeholders::_1));
+        
+        subscription2_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            "/camera/depth2/color/points", 10, std::bind(&PointCloudTransformer::pointCloudCallback2, this, std::placeholders::_1));
+        
+        subscription3_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            "/camera/depth3/color/points", 10, std::bind(&PointCloudTransformer::pointCloudCallback3, this, std::placeholders::_1));
+        
+        buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+        listener_ = std::make_shared<tf2_ros::TransformListener>(*buffer_);
+    }
+
+private:
+    void transformCloud(const sensor_msgs::msg::PointCloud2::SharedPtr msg, pcl::PointCloud<pcl::PointXYZ>& transformed_cloud, const std::string& target_frame)
+    {
+        pcl::PointCloud<pcl::PointXYZ> pcl_cloud;
+        pcl::fromROSMsg(*msg, pcl_cloud);
+
+        geometry_msgs::msg::TransformStamped transform;
+        try
+        {
+            transform = buffer_->lookupTransform(target_frame, msg->header.frame_id, tf2::TimePointZero);
+        }
+        catch (tf2::TransformException &ex)
+        {
+            RCLCPP_WARN(this->get_logger(), "%s", ex.what());
+            return;
+        }
+
+        Eigen::Matrix4f eigen_transform = Eigen::Matrix4f::Identity();
+        eigen_transform.block<3, 3>(0, 0) = Eigen::Quaternionf(
+            transform.transform.rotation.w,
+            transform.transform.rotation.x,
+            transform.transform.rotation.y,
+            transform.transform.rotation.z
+        ).toRotationMatrix();
+        eigen_transform(0, 3) = transform.transform.translation.x;
+        eigen_transform(1, 3) = transform.transform.translation.y;
+        eigen_transform(2, 3) = transform.transform.translation.z;
+
+        pcl::transformPointCloud(pcl_cloud, transformed_cloud, eigen_transform);
+    }
+
+    void pointCloudCallback1(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+    {
+        transformCloud(msg, transformed_cloud1_, "target_frame1");
+        
+        // Merge and publish if all clouds are ready
+        if (!transformed_cloud2_.empty() && !transformed_cloud3_.empty())
+        {
+            mergeAndPublish();
+        }
+    }
+
+    void pointCloudCallback2(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+    {
+        transformCloud(msg, transformed_cloud2_, "target_frame2");
+    }
+
+    void pointCloudCallback3(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+    {
+        transformCloud(msg, transformed_cloud2_, "target_frame3");
+    }
+
+    void mergeAndPublish()
+    {
+        pcl::PointCloud<pcl::PointXYZ> merged_cloud;
+        merged_cloud += transformed_cloud1_;
+        merged_cloud += transformed_cloud2_;
+        merged_cloud += transformed_cloud3_;
+        
+        sensor_msgs::msg::PointCloud2 merged_msg;
+        pcl::toROSMsg(merged_cloud, merged_msg);
+
+        merged_msg.header.stamp = this->now();
+        merged_msg.header.frame_id = "world"; 
+
+        publisher_->publish(merged_msg);
+
+        publishFilteredPointCloud(merged_cloud);
+
+        transformed_cloud1_.clear();
+        transformed_cloud2_.clear();
+        transformed_cloud3_.clear();
+    }
+
+    void publishFilteredPointCloud(const pcl::PointCloud<pcl::PointXYZ>& merged_cloud)
+    {
+        pcl::PointCloud<pcl::PointXYZ> cloud_without_color = merged_cloud;
+
+        // VoxelGrid
+        pcl::VoxelGrid<pcl::PointXYZ> voxel_grid;
+        voxel_grid.setInputCloud(cloud_without_color.makeShared());
+        voxel_grid.setLeafSize(0.02f, 0.02f, 0.02f);
+        voxel_grid.filter(cloud_without_color);
+
+        // SOR
+        pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
+        sor.setInputCloud(cloud_without_color.makeShared());
+        sor.setMeanK(50);
+        sor.setStddevMulThresh(1.0);
+        sor.filter(cloud_without_color);
+
+        // Convert the filtered PCL point cloud back to a ROS message
+        sensor_msgs::msg::PointCloud2 filtered_msg;
+        pcl::toROSMsg(cloud_without_color, filtered_msg);
+
+        // Publish
+        filtered_publisher_->publish(filtered_msg);
+    }
+
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription1_;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription2_;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription3_;
+
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_publisher_;
+    std::shared_ptr<tf2_ros::Buffer> buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> listener_;
+    
+    pcl::PointCloud<pcl::PointXYZ> transformed_cloud1_;
+    pcl::PointCloud<pcl::PointXYZ> transformed_cloud2_;
+    pcl::PointCloud<pcl::PointXYZ> transformed_cloud3_;
+
+    pcl::PointCloud<pcl::PointXYZ> merged_cloud_;
+
+};
+
+int main(int argc, char * argv[])
+{
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<PointCloudTransformer>());
+  rclcpp::shutdown();
+  return 0;
+}
 
