@@ -58,9 +58,29 @@ ament_target_dependencies(
 )
 
 
+# robot_joint_position.cpp
+add_executable(robot_joint_position src/robot_joint_position.cpp)
+target_include_directories(robot_joint_position PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(robot_joint_position PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(
+  robot_joint_position
+  "moveit_ros_planning_interface"
+  "rclcpp"
+  "std_msgs"
+  "sensor_msgs"
+  "PCL"
+  "pcl_conversions"
+  "angles"
+  "ur_msgs"
+)
+
+
 install(TARGETS 
   robot_speed_separation
   min_distance
+  robot_joint_position
   DESTINATION lib/${PROJECT_NAME})
 
 # Install launch files.

@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 
 
 
-/*
+
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -183,7 +183,7 @@ private:
         geometry_msgs::msg::TransformStamped transform;
         try
         {
-            transform = buffer_->lookupTransform("world", "camera_depth_optical_frame", tf2::TimePointZero);
+            transform = buffer_->lookupTransform("world", "camera_color_optical_frame", tf2::TimePointZero);
             //RCLCPP_INFO(this->get_logger(), "msg frame is %s", msg->header.frame_id.c_str());
         }
         catch (tf2::TransformException &ex)
@@ -219,7 +219,7 @@ private:
         publisher_->publish(transformed_msg);
     }
     
-    
+    /*
     // manual set Transformation Matrix
     void pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
     {
@@ -274,7 +274,7 @@ private:
 
         publisher_->publish(transformed);
     }
-    
+    */
 
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
@@ -290,7 +290,7 @@ int main(int argc, char * argv[])
   rclcpp::shutdown();
   return 0;
 }
-*/
+
 
 
 
@@ -468,7 +468,7 @@ int main(int argc, char * argv[])
 */
 
 
-
+/*
 // subscribe multi point cloud, do transformation and publish
 // better structure
 #include <memory>
@@ -630,4 +630,4 @@ int main(int argc, char * argv[])
   rclcpp::shutdown();
   return 0;
 }
-
+*/

@@ -65,11 +65,27 @@ ament_target_dependencies(multi_pointcloud
 )
 target_link_libraries(multi_pointcloud ${PCL_COMMON_LIBRARIES} ${PCL_IO_LIBRARIES} ${PCL_FILTERS_LIBRARIES} ${PCL_SEGMENTATION_LIBRARIES} ${PCL_SAMPLE_CONSENSUS_LIBRARIES} ${PCL_SURFACE_LIBRARIES})
 
+#robot_self_filter.cpp part
+add_executable(robot_self_filter src/robot_self_filter.cpp)
+ament_target_dependencies(robot_self_filter
+  rclcpp 
+  sensor_msgs
+  std_msgs
+  PCL
+  pcl_conversions
+  tf2
+  tf2_eigen
+  tf2_ros
+  Eigen3
+)
+target_link_libraries(robot_self_filter ${PCL_COMMON_LIBRARIES} ${PCL_IO_LIBRARIES} ${PCL_FILTERS_LIBRARIES} ${PCL_SEGMENTATION_LIBRARIES} ${PCL_SAMPLE_CONSENSUS_LIBRARIES} ${PCL_SURFACE_LIBRARIES})
+
 
 #Don't forget add executable name here
 install(TARGETS
     handover_T_inhand_detector
     multi_pointcloud
+    robot_self_filter
     DESTINATION lib/${PROJECT_NAME}) 
 
 

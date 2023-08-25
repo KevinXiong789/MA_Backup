@@ -12,6 +12,7 @@ import launch.actions
 import launch.launch_description_sources
 
 from launch.actions import IncludeLaunchDescription, TimerAction, ExecuteProcess
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
 
@@ -120,13 +121,26 @@ def generate_launch_description():
 	)
 	ld.add_action(ur_moveit_config_launch)
 	
+	#robot_joint_position_launch = launch.actions.ExecuteProcess(
+	#	cmd=['ros2', 'launch', 'robot_control_ssm', 'robot_joint_position.launch.py'],
+	#	output='screen'
+	#)
+	robot_joint_position_launch = launch.actions.IncludeLaunchDescription(
+			launch_description_source=launch.launch_description_sources.PythonLaunchDescriptionSource(
+				launch_file_path=os.path.join(
+					get_package_share_directory(package_name='robot_control_ssm'), 'launch/robot_joint_position.launch.py')
+			)
+		)
+	#ld.add_action(robot_joint_position_launch)
+
 	
+
 	multipointcloud_node = launch_ros.actions.Node(
 		package='pointcloud_processing',
 		executable='multi_pointcloud',
 		output='screen'
 	)
-	ld.add_action(multipointcloud_node)
+	#ld.add_action(multipointcloud_node)
 
 
 	# Define a timer to trigger the execution of a C++ file after 10 seconds
@@ -136,7 +150,7 @@ def generate_launch_description():
 			output='screen'
 		)
 	])
-	#ld.add_action(handover_after10)
+	ld.add_action(handover_after10)
 
 	
 	return ld
