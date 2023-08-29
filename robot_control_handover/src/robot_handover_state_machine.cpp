@@ -632,6 +632,8 @@ public:
 	ToolInHandFlag_sub_ = create_subscription<std_msgs::msg::Bool>(
 	  "/handover/ToolInHandFlag", 1, std::bind(&UR10EMoveit::toolInHandCallback, this, std::placeholders::_1));
 
+	handover_pub_ = create_publisher<std_msgs::msg::Bool>("/handover/approach_flag", 1);
+
 	// Begin state machine
 	//timer_ = create_wall_timer(std::chrono::milliseconds(1000), std::bind(&UR10EMoveit::stateMachine, this));
 	while (rclcpp::ok()) {
@@ -693,18 +695,25 @@ private:
 
 
   void stateMachine() {
+	std_msgs::msg::Bool flag;
 	updateStatus();
 	addWallsAndBase();
 	switch (robot_state) {
 		case NOMINAL:
 		std::cout << "Doing nominal Task" << std::endl;
+		flag.data = false;
+		handover_pub_->publish(flag);
 		switcher_ = !switcher_;
 		moveBetweenFixedPoints((switcher_) ? point1_pose_ : point2_pose_);
 		sleepSafeFor(3.0);
 		break;
 
+
 		case TAKEAWAY:
 		std::cout << "Grasping tool from human hand" << std::endl;
+		flag.data = true;
+		handover_pub_->publish(flag);
+
 		pose = getGraspGivePosition(handPosition_);
 		printf("hand position xyz: %f,%f,%f\n",pose.position.x,pose.position.y,pose.position.z);
 		if (isPoseWithinRange(pose)) {
@@ -718,15 +727,23 @@ private:
 		triggered_handover_ = false;
 		break;
 
+
 		case PICKTOOL:
 		std::cout << "Move to tool cell to pick tool" << std::endl;
+		flag.data = false;
+		handover_pub_->publish(flag);
+
 		PickTool(toolPoint_pose_);
 		//ToolInGripper = true;
 		sleepSafeFor(5.0);
 		break;
 
+
 		case GIVE:
 		std::cout << "Give tool to human hand" << std::endl;
+		flag.data = true;
+		handover_pub_->publish(flag);
+
 		pose = getGraspGivePosition(handPosition_);
 		printf("hand position xyz: %f,%f,%f\n",pose.position.x,pose.position.y,pose.position.z);
 		if (isPoseWithinRange(pose)) {
@@ -1204,6 +1221,7 @@ private:
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr hand_position_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr handover_trigger_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr ToolInHandFlag_sub_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr handover_pub_;
   //rclcpp::TimerBase::SharedPtr timer_;
 
 };
