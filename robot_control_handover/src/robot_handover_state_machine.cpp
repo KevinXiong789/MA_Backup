@@ -719,12 +719,13 @@ private:
 		if (isPoseWithinRange(pose)) {
 			moveToGraspPosition(pose);
 			PlaceTool(toolPoint_pose_);
-			sleepSafeFor(3.0);
+			sleepSafeFor(5.0);
 		} else {
 			std::cout << "Pose is out of range!" << std::endl;
 			break;
 		}
 		triggered_handover_ = false;
+		
 		break;
 
 
@@ -748,7 +749,7 @@ private:
 		printf("hand position xyz: %f,%f,%f\n",pose.position.x,pose.position.y,pose.position.z);
 		if (isPoseWithinRange(pose)) {
 			moveToGivePosition(pose);
-			sleepSafeFor(3.0);
+			sleepSafeFor(5.0);
 		} else {
 			std::cout << "Pose is out of range!" << std::endl;
 			break;

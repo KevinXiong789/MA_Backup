@@ -19,11 +19,11 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 #realsense_d435_serial_number =   '937622073146'
 realsense_d435_serial_number = '838212073332'
 #realsense_d435i_serial_number =  '923322070787'
-realsense_d435i_serial_number =  '117322070913'
+realsense_d435i_serial_number =  '117322070475'
 realsense_d455_1_serial_number = '213522254445'
 realsense_d455_2_serial_number = '215122251396'
 
-realsense_camera_serial_number = realsense_d435_serial_number
+realsense_camera_serial_number = realsense_d435i_serial_number
 
 
 publish_images =  True
@@ -131,7 +131,7 @@ def generate_launch_description():
 					get_package_share_directory(package_name='robot_control_ssm'), 'launch/robot_joint_position.launch.py')
 			)
 		)
-	#ld.add_action(robot_joint_position_launch)
+	ld.add_action(robot_joint_position_launch)
 
 	
 

@@ -87,7 +87,7 @@ int main(int argc, char * argv[])
 */
 
 
-/*
+
 // get robot joint positions and filter the point cloud of robot (robot filter is cuboid)       ******************** can run
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -117,8 +117,8 @@ public:
         p3_ = Eigen::Vector3f(0, 0, 0);
         p4_ = Eigen::Vector3f(0, 0, 0);
 
-        box_width_ = 0.5;
-        box_depth_ = 0.5;
+        box_width_ = 0.1;
+        box_depth_ = 0.1;
     }
 
 private:
@@ -194,12 +194,12 @@ int main(int argc, char * argv[])
     rclcpp::shutdown();
     return 0;
 }
-*/
 
 
 
 
 
+/*
 // when Filter is cylinder, problem
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -284,4 +284,4 @@ int main(int argc, char * argv[])
     rclcpp::shutdown();
     return 0;
 }
-
+*/
