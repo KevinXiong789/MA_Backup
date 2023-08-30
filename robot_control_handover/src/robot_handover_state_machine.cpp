@@ -634,6 +634,9 @@ public:
 
 	handover_pub_ = create_publisher<std_msgs::msg::Bool>("/handover/approach_flag", 1);
 
+	grasp_sub_ = create_subscription<std_msgs::msg::Bool>(
+		"/handover/grasp_flag", 1, std::bind(&UR10EMoveit::graspCallback, this, std::placeholders::_1));
+
 	// Begin state machine
 	//timer_ = create_wall_timer(std::chrono::milliseconds(1000), std::bind(&UR10EMoveit::stateMachine, this));
 	while (rclcpp::ok()) {
@@ -658,6 +661,10 @@ private:
   void handPositionCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
 	std::cout << "New hand position received" << std::endl;
 	handPosition_ = msg;
+  }
+
+  void graspCallback(const std_msgs::msg::Bool::SharedPtr msg) {
+	graspFlag_ = msg->data;
   }
 
   /*
@@ -688,6 +695,13 @@ private:
 			}
 	} else if (robot_state == PICKTOOL) {
 		robot_state = GIVE;
+	} else if (robot_state == GIVE){
+		if (graspFlag_){
+			std::cout << "Open the gripper!!!!!!!!!!!!" << std::endl;
+		} else {
+			std::cout << "Fail to open the gripper" << std::endl;
+		}
+		robot_state = NOMINAL;
 	} else {
 		robot_state = NOMINAL;
 	}
@@ -1215,6 +1229,7 @@ private:
   bool ToolInHandFlag_;
   bool handoverTriggerFlag_ = false;
   bool triggered_handover_ = false;
+  bool graspFlag_ = false;
   std_msgs::msg::Float32MultiArray::SharedPtr handPosition_;
   
   moveit::planning_interface::MoveGroupInterface move_group_interface_;
@@ -1222,6 +1237,7 @@ private:
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr hand_position_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr handover_trigger_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr ToolInHandFlag_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr grasp_sub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr handover_pub_;
   //rclcpp::TimerBase::SharedPtr timer_;
 

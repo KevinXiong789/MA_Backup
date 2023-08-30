@@ -131,7 +131,7 @@ def generate_launch_description():
 					get_package_share_directory(package_name='robot_control_ssm'), 'launch/robot_joint_position.launch.py')
 			)
 		)
-	ld.add_action(robot_joint_position_launch)
+	#ld.add_action(robot_joint_position_launch)
 
 	
 
@@ -150,7 +150,7 @@ def generate_launch_description():
 			output='screen'
 		)
 	])
-	ld.add_action(handover_after10)
+	#ld.add_action(handover_after10)
 
 	
 	return ld
