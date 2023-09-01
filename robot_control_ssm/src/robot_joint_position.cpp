@@ -54,7 +54,7 @@ private:
                     joint_positions_msg.data.push_back(link_position.z());
                 }
 
-                RCLCPP_INFO(this->get_logger(), "Joint %s position: x: %f, y: %f, z: %f", joint_name.c_str(), link_position.x(), link_position.y(), link_position.z());
+                //RCLCPP_INFO(this->get_logger(), "Joint %s position: x: %f, y: %f, z: %f", joint_name.c_str(), link_position.x(), link_position.y(), link_position.z());
             }
         }
 

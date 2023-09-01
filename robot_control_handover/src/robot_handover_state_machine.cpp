@@ -636,13 +636,16 @@ public:
 
 	grasp_sub_ = create_subscription<std_msgs::msg::Bool>(
 		"/handover/grasp_flag", 1, std::bind(&UR10EMoveit::graspCallback, this, std::placeholders::_1));
+	
+	cluster_sub_ = create_subscription<std_msgs::msg::Bool>(
+		"/handover/cluster_detected", 1, std::bind(&UR10EMoveit::clusterCallback, this, std::placeholders::_1));
 
 	// Begin state machine
 	//timer_ = create_wall_timer(std::chrono::milliseconds(1000), std::bind(&UR10EMoveit::stateMachine, this));
 	while (rclcpp::ok()) {
 	  stateMachine();
 	  rclcpp::spin_some(this->get_node_base_interface());
-	  //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+	  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	}
   }
 
@@ -665,6 +668,10 @@ private:
 
   void graspCallback(const std_msgs::msg::Bool::SharedPtr msg) {
 	graspFlag_ = msg->data;
+  }
+
+  void clusterCallback(const std_msgs::msg::Bool::SharedPtr msg) {
+	clusterFlag_ = msg->data;
   }
 
   /*
@@ -696,7 +703,7 @@ private:
 	} else if (robot_state == PICKTOOL) {
 		robot_state = GIVE;
 	} else if (robot_state == GIVE){
-		if (graspFlag_){
+		if (graspFlag_ && clusterFlag_){
 			std::cout << "Open the gripper!!!!!!!!!!!!" << std::endl;
 		} else {
 			std::cout << "Fail to open the gripper" << std::endl;
@@ -1230,6 +1237,7 @@ private:
   bool handoverTriggerFlag_ = false;
   bool triggered_handover_ = false;
   bool graspFlag_ = false;
+  bool clusterFlag_ = false;
   std_msgs::msg::Float32MultiArray::SharedPtr handPosition_;
   
   moveit::planning_interface::MoveGroupInterface move_group_interface_;
@@ -1238,6 +1246,7 @@ private:
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr handover_trigger_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr ToolInHandFlag_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr grasp_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cluster_sub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr handover_pub_;
   //rclcpp::TimerBase::SharedPtr timer_;
 

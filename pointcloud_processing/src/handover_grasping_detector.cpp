@@ -168,7 +168,7 @@ private:
             std::pow(point1_[2] - point2_[2], 2)
         );
 
-        //printf("distance: %.4f \n", distance);
+        printf("distance: %.4f \n", distance);
 
         if (distance > distance_threshold_) {
             distance_under_threshold_time_ = 0;
@@ -208,7 +208,7 @@ private:
         ec.setInputCloud(cloud);
         ec.extract(cluster_indices);
 
-        printf("cluster size: %ld \n", cluster_indices.size());
+        //printf("cluster size: %ld \n", cluster_indices.size());
 
         if(cluster_indices.size() == 1) {  // assuming you want exactly one cluster
             auto msg = std_msgs::msg::Bool();
