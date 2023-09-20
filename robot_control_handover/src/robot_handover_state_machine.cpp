@@ -620,6 +620,12 @@ public:
 	toolPoint_pose_.position.z = 0.3;
 	toolPoint_pose_.position.y = 0.5;
 
+	move_group_interface_.setGoalPositionTolerance(0.001);
+	move_group_interface_.setGoalJointTolerance(0.001);
+	move_group_interface_.setGoalOrientationTolerance(0.01);
+
+	move_group_interface_.allowReplanning(true);
+
 	// Declare a subscriber for the hand position topic
 	hand_position_sub_ = create_subscription<std_msgs::msg::Float32MultiArray>(
 	  "/handover/tool_grasping_position", 1, std::bind(&UR10EMoveit::handPositionCallback, this, std::placeholders::_1));
@@ -1048,7 +1054,7 @@ private:
   }
 */
 
-/*
+
   void moveToGivePosition(geometry_msgs::msg::Pose pose) {
 	// Code to move the robot to the given position based on the received message
 	if (robot_state != GIVE) {
@@ -1101,7 +1107,7 @@ private:
 		std::cerr << "Failed to compute Cartesian path to giving point" << std::endl;
 	}
   }
-*/
+
 
   void moveToGraspPosition(const geometry_msgs::msg::Pose& point_pose) {
 	int trial = 0;
@@ -1117,6 +1123,7 @@ private:
 	sleepSafeFor(1.0);
   }
 
+/*
   void moveToGivePosition(const geometry_msgs::msg::Pose& point_pose) {
 	int trial = 0;
 	while(trial < 20) {
@@ -1130,7 +1137,7 @@ private:
 	std::cerr << "Max execution attempts reached, error" << std::endl;
 	sleepSafeFor(1.0);
   }
-
+*/
 
 
   bool checkPositionStability(geometry_msgs::msg::Pose old_pose, geometry_msgs::msg::Pose new_pose) {
@@ -1143,7 +1150,7 @@ private:
 
   void addWallsAndBase() {
 	std::vector<moveit_msgs::msg::CollisionObject> collision_objects;
-	collision_objects.resize(5);
+	collision_objects.resize(4);
 
 	// Size for the walls
 	double wall_height = 2.0;  // 2 meter high
@@ -1200,6 +1207,7 @@ private:
 	collision_objects[3].primitive_poses[0].position.z = -base_height;
 	collision_objects[3].operation = collision_objects[3].ADD;
 
+/*
 	// Add tool box
 	collision_objects[4].header.frame_id = move_group_interface_.getPlanningFrame();
 	collision_objects[4].id = "tool box";
@@ -1218,6 +1226,7 @@ private:
 	collision_objects[4].primitive_poses[0].position.y = -0.53;
 	collision_objects[4].primitive_poses[0].position.z = box_height / 2;
 	collision_objects[4].operation = collision_objects[3].ADD;
+*/
 
 	// Now, let's add the collision object into the world
 	planning_scene_interface.addCollisionObjects(collision_objects);

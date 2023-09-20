@@ -270,7 +270,7 @@ public:
         // Create Depth Sensor
         depthSensor_ = DepthSensor::create();
         depthSensor_->connectOnNewFrame(std::bind(&NuitrackApp::onNewDepthFrame, this, std::placeholders::_1));
-  
+
         // Start Nuitrack
         Nuitrack::run();
         while (rclcpp::ok()) { 
@@ -447,9 +447,13 @@ private:
         depth_cloud_pub_->publish(cloud_msg);
     }
 
+
+    
+
 private:
     SkeletonTracker::Ptr skeletonTracker_;
     DepthSensor::Ptr depthSensor_;
+    
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr hand_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr depth_cloud_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_array_publisher_;
